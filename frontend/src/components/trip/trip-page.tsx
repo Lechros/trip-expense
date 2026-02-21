@@ -4,10 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabExpenses } from "./tab-expenses";
 import { TabExchange } from "./tab-exchange";
 import { TabSettlement } from "./tab-settlement";
+import { TabSettings } from "./tab-settings";
 
 const TABS = [
   { id: "expenses" as const, label: "지출", icon: Receipt },
@@ -99,7 +99,7 @@ export function TripPage({ tripId }: TripPageProps) {
             <TabSettlement />
           )}
           {tab === "settings" && (
-            <TabSettingsPlaceholder />
+            <TabSettings />
           )}
         </div>
       </main>
@@ -107,23 +107,3 @@ export function TripPage({ tripId }: TripPageProps) {
   );
 }
 
-function TabSettingsPlaceholder() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="size-4 text-primary" />
-          설정
-        </CardTitle>
-        <CardDescription>
-          여행 설정(이름, 설명, 기간, 국가, 통화), 공개 여부·여행 비밀번호, 멤버 관리(owner만).
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          (여행 설정·멤버 관리 UI 설계 예정)
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
