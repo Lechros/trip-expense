@@ -6,6 +6,7 @@ import { ArrowLeft, Plane, Receipt, RefreshCw, Calculator, Settings } from "luci
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabExpenses } from "./tab-expenses";
+import { TabExchange } from "./tab-exchange";
 
 const TABS = [
   { id: "expenses" as const, label: "지출", icon: Receipt },
@@ -91,7 +92,7 @@ export function TripPage({ tripId }: TripPageProps) {
             <TabExpenses />
           )}
           {tab === "exchange" && (
-            <TabExchangePlaceholder />
+            <TabExchange />
           )}
           {tab === "settlement" && (
             <TabSettlementPlaceholder />
@@ -102,27 +103,6 @@ export function TripPage({ tripId }: TripPageProps) {
         </div>
       </main>
     </div>
-  );
-}
-
-function TabExchangePlaceholder() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <RefreshCw className="size-4 text-primary" />
-          환전
-        </CardTitle>
-        <CardDescription>
-          환전 기록. 결제자별 정산 시 환율 산출에 사용. source/target 통화, rate, 금액, 일시.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          (환전 기록 목록·추가·수정 UI 설계 예정)
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 
