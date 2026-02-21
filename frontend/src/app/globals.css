@@ -124,3 +124,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Vaul drawer: 기본 500ms → 200ms (Tailwind duration-200 수준) */
+[data-vaul-drawer] {
+  transition-duration: 0.2s;
+  animation-duration: 0.2s;
+}
+[data-vaul-overlay][data-vaul-snap-points="false"] {
+  animation-duration: 0.2s;
+}
+[data-vaul-overlay][data-vaul-snap-points="true"] {
+  transition-duration: 0.2s;
+}
