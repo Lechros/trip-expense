@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import { Plus, Filter, Eye, EyeOff, FileText, ArrowLeft } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Plus, Filter, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -13,10 +13,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
 import { ExpenseAddSheet, type ExpenseFormValue } from "./expense-add-sheet";
 import { ExpenseDetailSheet } from "./expense-detail-sheet";
 import { ExpenseFilterSheet } from "./expense-filter-sheet";
+import { ExpenseListRow } from "./expense-list-row";
 
 /** 프로토타입용. 연동 시 로그인 사용자 정보로 교체 */
 const MOCK_CURRENT_USER = "김철수";
@@ -95,29 +95,6 @@ function entryToFormValue(entry: MockEntry): ExpenseFormValue {
     beneficiaryIds: [...entry.beneficiaries],
     memo: memoOrTitle,
   };
-}
-
-function formatAmount(amount: number, currency: string): string {
-  if (currency === "KRW") return `${amount.toLocaleString("ko-KR")}원`;
-  return `${amount.toLocaleString("ko-KR")} ${currency}`;
-}
-
-/** paidAt "2025-02-20" → "2.20" (월.일) */
-function formatMonthDay(paidAt: string): string {
-  const [y, m, d] = paidAt.slice(0, 10).split("-").map(Number);
-  return `${m}.${d}`;
-}
-
-function getDateKey(paidAt: string): string {
-  return paidAt.slice(0, 10);
-}
-
-function isCurrentYear(paidAt: string): boolean {
-  return new Date(paidAt).getFullYear() === new Date().getFullYear();
-}
-
-function getYear(paidAt: string): number {
-  return new Date(paidAt).getFullYear();
 }
 
 /**
@@ -204,7 +181,7 @@ export function TabExpenses() {
           aria-label="필터 열기"
           onClick={() => setFilterOpen(true)}
         >
-          <Filter className="size-4" aria-hidden />
+          <Filter aria-hidden />
           필터
         </Button>
         <Button
@@ -216,9 +193,9 @@ export function TabExpenses() {
           aria-label={showDeleted ? "삭제된 항목 숨기기" : "삭제된 항목 보기"}
         >
           {showDeleted ? (
-            <EyeOff className="size-4" aria-hidden />
+            <EyeOff aria-hidden />
           ) : (
-            <Eye className="size-4" aria-hidden />
+            <Eye aria-hidden />
           )}
           삭제된 항목 보기
         </Button>
@@ -226,87 +203,15 @@ export function TabExpenses() {
 
       {/* 목록: 토스 통장형 평면 리스트. 월.일(연속 시 생략). 올해 아닌 구간 맨 위에만 "YYYY년" 표시 */}
       <ul className="flex flex-col" role="list" aria-label="정산 항목 목록">
-        {entries.map((entry, index) => {
-          const dateKey = getDateKey(entry.paidAt);
-          const prevDateKey = index > 0 ? getDateKey(entries[index - 1].paidAt) : "";
-          const showDate = dateKey !== prevDateKey;
-          const entryYear = getYear(entry.paidAt);
-          const prevYear = index > 0 ? getYear(entries[index - 1].paidAt) : null;
-          const showYearHeader =
-            !isCurrentYear(entry.paidAt) &&
-            (prevYear === null || prevYear !== entryYear);
-
-          return (
-            <React.Fragment key={entry.id}>
-              {showYearHeader && (
-                <li
-                  className={cn(
-                    "pt-3 pb-1 px-4",
-                    index > 0 && "border-t border-border"
-                  )}
-                  aria-hidden
-                >
-                  <p className="text-sm text-muted-foreground">
-                    {entryYear}년
-                  </p>
-                </li>
-              )}
-              <li>
-                <button
-                  type="button"
-                  className={cn(
-                    "w-full py-4 text-left",
-                    "transition-colors hover:bg-muted/50 active:bg-muted touch-manipulation min-h-14"
-                  )}
-                  onClick={() => openDetail(entry)}
-                  aria-label={`${entry.title}, ${entry.paidBy}님이 ${formatAmount(entry.amount, entry.currency)} 결제. 상세 보기`}
-                >
-                  <div className="flex items-start gap-3 px-4">
-                    {/* 왼쪽: 날짜. 제목과 동일 높이 박스, 텍스트 vertical center */}
-                    <div className="w-11 shrink-0 h-5 flex items-center text-muted-foreground">
-                      {showDate ? (
-                        <span className="text-sm tabular-nums">
-                          {formatMonthDay(entry.paidAt)}
-                        </span>
-                      ) : (
-                        <span className="invisible text-sm tabular-nums" aria-hidden>
-                          {formatMonthDay(entry.paidAt)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 가운데: 제목(날짜와 동일 높이 박스, vertical center) + 결제·참여 */}
-                    <div className="min-w-0 flex-1">
-                      <div className="h-5 flex items-center min-w-0">
-                        <p className="font-medium text-foreground flex items-center gap-1.5 truncate min-w-0">
-                          <span className="truncate">{entry.title}</span>
-                          {entry.memo && (
-                            <FileText
-                              className="size-4 shrink-0 text-muted-foreground"
-                              aria-label="메모 있음"
-                            />
-                          )}
-                        </p>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1 truncate flex items-center gap-1.5">
-                        <span>{entry.paidBy}</span>
-                        <ArrowLeft className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden />
-                        <span>{entry.beneficiaries.join(" · ")}</span>
-                      </p>
-                    </div>
-
-                    {/* 오른쪽: 금액. 첫 줄과 동일 높이 박스, vertical center */}
-                    <div className="shrink-0 h-5 flex items-center">
-                      <span className="text-lg font-semibold tabular-nums text-foreground">
-                        {formatAmount(entry.amount, entry.currency)}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              </li>
-            </React.Fragment>
-          );
-        })}
+        {entries.map((entry, index) => (
+          <ExpenseListRow
+            key={entry.id}
+            entry={entry}
+            index={index}
+            entries={entries}
+            onSelect={openDetail}
+          />
+        ))}
       </ul>
 
         {/* 삭제된 항목 보기 켰을 때: 섹션 헤더 + 빈 상태(레이아웃만) */}
@@ -325,7 +230,7 @@ export function TabExpenses() {
       {/* 하단 고정: 그라데이션(클릭 통과) + 지출 추가 버튼 */}
       <div className="fixed bottom-0 left-0 right-0 z-10">
         <div
-          className="h-8 w-full bg-gradient-to-t from-background to-transparent pointer-events-none"
+          className="h-8 w-full bg-linear-to-t from-background to-transparent pointer-events-none"
           aria-hidden
         />
         <div className="px-4 pt-1 pb-4 bg-background">
@@ -336,7 +241,7 @@ export function TabExpenses() {
             aria-label="지출 항목 추가"
             onClick={() => setAddOpen(true)}
           >
-            <Plus className="size-5" aria-hidden />
+            <Plus aria-hidden />
             지출 추가
           </Button>
         </div>

@@ -160,7 +160,7 @@ export function ExpenseAddSheet({
               aria-label="닫기"
               onClick={handleClose}
             >
-              <X className="size-5" />
+              <X />
             </Button>
           </div>
         </header>

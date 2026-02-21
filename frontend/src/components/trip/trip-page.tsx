@@ -41,12 +41,12 @@ export function TripPage({ tripId }: TripPageProps) {
             aria-label="여행 목록으로"
           >
             <Link href="/">
-              <ArrowLeft className="size-5" />
+              <ArrowLeft />
             </Link>
           </Button>
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Plane className="size-4" aria-hidden />
+              <Plane aria-hidden />
             </div>
             <span className="truncate text-base font-semibold tracking-tight text-foreground">
               여행 이름
@@ -79,7 +79,7 @@ export function TripPage({ tripId }: TripPageProps) {
                 aria-current={isActive ? "page" : undefined}
                 aria-label={isActive ? `${label} (선택됨)` : label}
               >
-                <Icon className="size-4 shrink-0" aria-hidden />
+                <Icon aria-hidden />
                 <span>{label}</span>
               </Button>
             );

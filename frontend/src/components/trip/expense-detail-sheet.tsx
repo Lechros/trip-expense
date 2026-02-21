@@ -84,7 +84,7 @@ export function ExpenseDetailSheet({
               aria-label="닫기"
               onClick={onClose}
             >
-              <X className="size-5" />
+              <X />
             </Button>
           </div>
         </header>

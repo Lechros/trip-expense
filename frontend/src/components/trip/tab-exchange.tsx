@@ -309,7 +309,7 @@ export function TabExchange() {
             aria-label="환전 기록 추가"
             onClick={() => setAddOpen(true)}
           >
-            <Plus className="size-5" aria-hidden />
+            <Plus aria-hidden />
             환전 추가
           </Button>
         </div>
