@@ -125,6 +125,30 @@
   }
 }
 
+/* Dialog 아래→위 슬라이드 (지출 추가/상세 풀스크린) */
+@keyframes dialog-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes dialog-slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+[data-slot="dialog-content"].dialog-slide-from-bottom[data-state="open"] {
+  animation: dialog-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+[data-slot="dialog-content"].dialog-slide-from-bottom[data-state="closed"] {
+  animation: dialog-slide-down 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* Vaul drawer: 기본 500ms → 200ms (Tailwind duration-200 수준) */
 [data-vaul-drawer] {
   transition-duration: 0.2s;

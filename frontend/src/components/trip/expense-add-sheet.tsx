@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,21 +10,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter,
-} from "@/components/ui/drawer";
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { X, Check } from "lucide-react";
 
 /** 프로토타입용. 연동 시 API/트립 정보로 교체 */
 const MOCK_MEMBERS = ["김철수", "이영희", "박민수"];
 const CURRENCIES = [
-  { value: "KRW", label: "KRW (원)" },
-  { value: "JPY", label: "JPY (엔)" },
+  { value: "KRW", label: "KRW (원)", symbol: "₩" },
+  { value: "JPY", label: "JPY (엔)", symbol: "¥" },
 ];
 
 export type ExpenseFormValue = {
@@ -53,6 +55,14 @@ const getDefaultFormValue = (defaultPaidBy?: string): ExpenseFormValue => {
   };
 };
 
+/** 결제자를 맨 앞으로 한 참여자 순서 */
+function orderedMembers(defaultPaidBy?: string): string[] {
+  if (!defaultPaidBy || !MOCK_MEMBERS.includes(defaultPaidBy))
+    return [...MOCK_MEMBERS];
+  const rest = MOCK_MEMBERS.filter((n) => n !== defaultPaidBy);
+  return [defaultPaidBy, ...rest];
+}
+
 type ExpenseAddSheetProps = {
   open: boolean;
   onClose: () => void;
@@ -67,7 +77,7 @@ type ExpenseAddSheetProps = {
 };
 
 /**
- * 지출 추가 Drawer. SPEC §4.2: 결제자, 금액, 통화, paidAt, 참여자, 메모.
+ * 지출 추가 풀스크린. 결제 금액·참여자·추가 정보(아코디언)·하단 고정 버튼.
  */
 export function ExpenseAddSheet({
   open,
@@ -89,15 +99,7 @@ export function ExpenseAddSheet({
     }
   }, [open, initialValue, defaultPaidBy]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const titleTrimmed = form.title.trim();
-    const amount = Number(form.amount);
-    if (!titleTrimmed || !form.paidBy || !(amount > 0) || form.beneficiaryIds.length === 0) return;
-    onSubmit(
-      { ...form, title: titleTrimmed, memo: form.memo.trim() },
-      editId ?? undefined
-    );
+  const handleClose = () => {
     setForm({
       ...getDefaultFormValue(defaultPaidBy),
       paidAt: new Date().toISOString().slice(0, 16),
@@ -105,7 +107,14 @@ export function ExpenseAddSheet({
     onClose();
   };
 
-  const handleCancel = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(form.amount);
+    if (!form.paidBy || !(amount > 0) || form.beneficiaryIds.length === 0) return;
+    onSubmit(
+      { ...form, title: form.memo.trim(), memo: form.memo.trim() },
+      editId ?? undefined
+    );
     setForm({
       ...getDefaultFormValue(defaultPaidBy),
       paidAt: new Date().toISOString().slice(0, 16),
@@ -122,178 +131,196 @@ export function ExpenseAddSheet({
     }));
   };
 
+  const currencySymbol =
+    CURRENCIES.find((c) => c.value === form.currency)?.symbol ?? "₩";
+  const members = orderedMembers(defaultPaidBy);
+
   return (
-    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
-      <DrawerContent className="overflow-hidden flex flex-col">
-        <DrawerHeader className="border-b border-border pb-4">
-          <DrawerTitle id="expense-add-title">
+    <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="dialog-slide-from-bottom inset-0 left-0 top-0 h-dvh w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 gap-0 flex flex-col overflow-hidden bg-background data-[state=open]:animate-none data-[state=closed]:animate-none"
+      >
+        <DialogTitle className="sr-only">
+          {isEdit ? "지출 수정" : "지출 추가"}
+        </DialogTitle>
+
+        {/* 헤더: 제목 가운데, X, navbar와 동일 py-3 */}
+        <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border px-4 py-3 sm:px-6">
+          <div className="w-9" aria-hidden />
+          <h2 className="text-foreground text-center text-base font-semibold">
             {isEdit ? "지출 수정" : "지출 추가"}
-          </DrawerTitle>
-        </DrawerHeader>
+          </h2>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-9 shrink-0 rounded-full"
+              aria-label="닫기"
+              onClick={handleClose}
+            >
+              <X className="size-5" />
+            </Button>
+          </div>
+        </header>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4">
-            <FieldGroup className="gap-5">
-              <Field>
-                <FieldLabel asChild>
-                  <Label htmlFor="expense-title">제목</Label>
-                </FieldLabel>
-                <Input
-                  id="expense-title"
-                  type="text"
-                  placeholder="예: 점심 식사"
-                  value={form.title}
-                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                  className="min-h-10"
-                  required
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel asChild>
-                  <Label htmlFor="expense-paidBy">결제자</Label>
-                </FieldLabel>
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-28 pt-6">
+          {/* 1. 결제 금액: 라벨 + [통화기호][input][dropdown] */}
+          <div className="space-y-2">
+            <Label htmlFor="expense-amount" className="text-muted-foreground text-sm">
+              결제 금액
+            </Label>
+            <InputGroup className="min-h-12 bg-transparent text-lg">
+              <InputGroupAddon align="inline-start">
+                <div className="text-foreground text-lg font-medium w-5 text-center">
+                  {currencySymbol}
+                </div>
+              </InputGroupAddon>
+              <InputGroupInput
+                id="expense-amount"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="0"
+                value={form.amount}
+                onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+                className="text-lg"
+                aria-label="결제 금액"
+              />
+              <InputGroupAddon align="inline-end" className="border-0 bg-transparent pr-1">
                 <Select
-                  value={form.paidBy}
-                  onValueChange={(value) => setForm((p) => ({ ...p, paidBy: value }))}
-                  required
+                  value={form.currency}
+                  onValueChange={(value) => setForm((p) => ({ ...p, currency: value }))}
                 >
-                  <SelectTrigger id="expense-paidBy" className="w-full min-h-10">
-                    <SelectValue placeholder="결제한 사람 선택" />
+                  <SelectTrigger
+                    id="expense-currency"
+                    className="h-9 w-fit min-w-0 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                  >
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MOCK_MEMBERS.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
+                    {CURRENCIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel asChild>
-                    <Label htmlFor="expense-currency">통화</Label>
-                  </FieldLabel>
-                  <Select
-                    value={form.currency}
-                    onValueChange={(value) => setForm((p) => ({ ...p, currency: value }))}
+          {/* 2. 참여자: 라벨(참여자 N명) + 풀폭 리스트 */}
+          <div className="mt-6 space-y-1">
+            <Label className="text-muted-foreground text-sm">
+              참여자 {form.beneficiaryIds.length}명
+            </Label>
+            <div
+              className="flex flex-col"
+              role="group"
+              aria-label="참여자 선택"
+            >
+              {members.map((name) => {
+                const checked = form.beneficiaryIds.includes(name);
+                return (
+                  <Button
+                    key={name}
+                    type="button"
+                    variant="ghost"
+                    onClick={() => toggleBeneficiary(name)}
+                    className="h-14 justify-start rounded-none -mx-6 px-6 touch-manipulation font-normal"
+                    aria-label={`${name} ${checked ? "참여함" : "참여 안 함"}`}
+                    aria-pressed={checked}
                   >
-                    <SelectTrigger id="expense-currency" className="w-full min-h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel asChild>
-                    <Label htmlFor="expense-amount">금액</Label>
-                  </FieldLabel>
-                  <Input
-                    id="expense-amount"
-                    type="number"
-                    min={1}
-                    step={1}
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={form.amount}
-                    onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
-                    className="min-h-10"
-                  />
-                </Field>
-              </div>
+                    <span className="flex flex-1 items-center gap-2">
+                      <span className="font-medium">{name}</span>
+                      {defaultPaidBy === name && (
+                        <span className="bg-primary/15 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
+                          결제자
+                        </span>
+                      )}
+                    </span>
+                    <Check
+                      className={cn(
+                        "size-6 shrink-0",
+                        checked ? "text-primary" : "text-muted-foreground/35"
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
 
-              <Field>
-                <FieldLabel asChild>
-                  <Label htmlFor="expense-paidAt">결제 일시</Label>
-                </FieldLabel>
+          {/* 3. 구분선 + 메모(선택), 결제 일시 */}
+          <div className="mt-2 border-t border-border pt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="expense-memo" className="text-muted-foreground text-sm">
+                메모 (선택)
+              </Label>
+              <Input
+                id="expense-memo"
+                type="text"
+                placeholder="예: 점심 식사"
+                value={form.memo}
+                onChange={(e) => setForm((p) => ({ ...p, memo: e.target.value }))}
+                className="min-h-10 bg-transparent"
+              />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="expense-paidAt" className="text-muted-foreground text-sm">
+                  결제 일시
+                </Label>
                 <Input
                   id="expense-paidAt"
                   type="datetime-local"
                   value={form.paidAt}
                   onChange={(e) => setForm((p) => ({ ...p, paidAt: e.target.value }))}
-                  className="min-h-10"
+                  className="min-h-10 w-full bg-transparent"
                 />
-              </Field>
-
-              <Field>
-                <FieldLabel asChild>
-                  <Label>참여자</Label>
-                </FieldLabel>
-                <p className="text-muted-foreground text-xs mb-2">
-                  이 비용을 나눠 쓴 참여자를 선택하세요. 1명 이상 선택해야 합니다.
-                </p>
-                <div className="flex flex-col gap-2" role="group" aria-label="참여자 선택">
-                  {MOCK_MEMBERS.map((name) => (
-                    <label
-                      key={name}
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl border border-border bg-input/30 px-4 py-3 min-h-12 cursor-pointer touch-manipulation",
-                        "hover:bg-muted/50 has-checked:border-primary has-checked:bg-primary/5"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.beneficiaryIds.includes(name)}
-                        onChange={() => toggleBeneficiary(name)}
-                        className="size-4 rounded border-border"
-                        aria-label={`${name} 참여`}
-                      />
-                      <span className="font-medium">{name}</span>
-                    </label>
-                  ))}
-                </div>
-              </Field>
-
-              <Field>
-                <FieldLabel asChild>
-                  <Label htmlFor="expense-memo">메모 (선택)</Label>
-                </FieldLabel>
-                <Textarea
-                  id="expense-memo"
-                  placeholder="추가 설명이 있으면 입력하세요"
-                  value={form.memo}
-                  onChange={(e) => setForm((p) => ({ ...p, memo: e.target.value }))}
-                  rows={3}
-                  className="min-h-20 resize-none"
-                />
-              </Field>
-            </FieldGroup>
+              </div>
           </div>
+        </div>
 
-          <DrawerFooter className="flex-row gap-2 border-t border-border pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="flex-1 min-h-12 touch-manipulation"
-              onClick={handleCancel}
-            >
-              취소
-            </Button>
-            <Button
-              type="submit"
-              size="lg"
-              className="flex-1 min-h-12 touch-manipulation"
-              disabled={
-                !form.title.trim() ||
-                !form.paidBy ||
-                !(Number(form.amount) > 0) ||
-                form.beneficiaryIds.length === 0
-              }
-            >
-              저장
-            </Button>
-          </DrawerFooter>
+          {/* 하단 고정: 그라데이션 + 취소 / 추가하기 */}
+          <div className="fixed bottom-0 left-0 right-0 z-10 w-full">
+            <div
+              className="h-8 w-full bg-linear-to-t from-background to-transparent pointer-events-none"
+              aria-hidden
+            />
+            <div className="flex w-full gap-2 px-6 pt-1 pb-4 bg-background">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="min-h-12 flex-1 touch-manipulation"
+                onClick={handleClose}
+              >
+                취소
+              </Button>
+              <Button
+                type="submit"
+                size="lg"
+                className="min-h-12 flex-1 touch-manipulation"
+                disabled={
+                  !form.paidBy ||
+                  !(Number(form.amount) > 0) ||
+                  form.beneficiaryIds.length === 0
+                }
+              >
+                {isEdit ? "저장" : "추가하기"}
+              </Button>
+            </div>
+          </div>
         </form>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }

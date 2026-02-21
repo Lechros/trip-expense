@@ -86,7 +86,7 @@ export function TripPage({ tripId }: TripPageProps) {
         </div>
       </nav>
 
-      <main className="flex flex-1 flex-col overflow-auto px-4 py-6 sm:px-6 sm:py-8">
+      <main className="flex flex-1 flex-col overflow-auto py-6 sm:py-8">
         <div className="mx-auto w-full max-w-lg flex flex-1 flex-col">
           {tab === "expenses" && (
             <TabExpenses />
