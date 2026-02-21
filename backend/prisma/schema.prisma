@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// 여행 비용 정산 — 데이터 모델 (SPEC §9 기준)
+// 금액: Decimal 사용 (부동소수 오차 방지)
 
 generator client {
   provider = "prisma-client"
@@ -11,4 +8,142 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String? // null이면 소셜 로그인만
+  oauthId      String?  @unique // e.g. "google:123"
+  createdAt    DateTime @default(now())
+
+  createdTrips    Trip[]                  @relation("TripCreatedBy")
+  tripMemberships TripMember[]
+  paidEntries     SettlementEntry[]       @relation("EntryPaidByUser")
+  recordedEntries SettlementEntry[]       @relation("EntryRecordedByUser")
+  beneficiaries   SettlementBeneficiary[] @relation("BeneficiaryUser")
+  exchangeRecords ExchangeRecord[]        @relation("ExchangeUser")
+}
+
+model Guest {
+  id           String   @id @default(uuid())
+  tripId       String
+  displayName  String
+  colorHex     String? // 구분용 색상
+  passwordHash String // 참여 시 검증
+  createdAt    DateTime @default(now())
+
+  trip            Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  membership      TripMember?
+  paidEntries     SettlementEntry[]       @relation("EntryPaidByGuest")
+  recordedEntries SettlementEntry[]       @relation("EntryRecordedByGuest")
+  beneficiaries   SettlementBeneficiary[] @relation("BeneficiaryGuest")
+  exchangeRecords ExchangeRecord[]        @relation("ExchangeGuest")
+
+  @@unique([tripId, id])
+}
+
+model Trip {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  startDate          DateTime
+  endDate            DateTime
+  countryCode        String // ISO 3166-1 alpha-2
+  baseCurrency       String   @default("KRW")
+  additionalCurrency String? // 최대 1개, e.g. "JPY"
+  isPublic           Boolean  @default(false)
+  passwordHash       String? // 공개 시 필수
+  createdByUserId    String
+  createdAt          DateTime @default(now())
+
+  createdByUser User              @relation("TripCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  guests        Guest[]
+  members       TripMember[]
+  entries       SettlementEntry[]
+  exchanges     ExchangeRecord[]
+
+  @@index([createdByUserId])
+}
+
+model TripMember {
+  id          String   @id @default(uuid())
+  tripId      String
+  userId      String?
+  guestId     String?  @unique // 1:1 with Guest
+  displayName String
+  colorHex    String?
+  role        String // "owner" | "member"
+  joinedAt    DateTime @default(now())
+
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guest Guest? @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId, guestId])
+  @@index([tripId])
+  @@index([userId])
+  @@index([guestId])
+}
+
+model SettlementEntry {
+  id                String    @id @default(uuid())
+  tripId            String
+  paidByUserId      String?
+  paidByGuestId     String?
+  recordedByUserId  String?
+  recordedByGuestId String?
+  amount            Decimal   @db.Decimal(14, 2)
+  currency          String
+  paidAt            DateTime
+  recordedAt        DateTime  @default(now())
+  memo              String?
+  deletedAt         DateTime?
+
+  trip            Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidByUser      User?                   @relation("EntryPaidByUser", fields: [paidByUserId], references: [id], onDelete: SetNull)
+  paidByGuest     Guest?                  @relation("EntryPaidByGuest", fields: [paidByGuestId], references: [id], onDelete: SetNull)
+  recordedByUser  User?                   @relation("EntryRecordedByUser", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  recordedByGuest Guest?                  @relation("EntryRecordedByGuest", fields: [recordedByGuestId], references: [id], onDelete: SetNull)
+  beneficiaries   SettlementBeneficiary[]
+
+  @@index([tripId])
+  @@index([paidByUserId])
+  @@index([paidByGuestId])
+  @@index([deletedAt])
+}
+
+model SettlementBeneficiary {
+  id      String  @id @default(uuid())
+  entryId String
+  userId  String?
+  guestId String?
+
+  entry SettlementEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user  User?           @relation("BeneficiaryUser", fields: [userId], references: [id], onDelete: Cascade)
+  guest Guest?          @relation("BeneficiaryGuest", fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
+}
+
+model ExchangeRecord {
+  id             String   @id @default(uuid())
+  tripId         String
+  userId         String?
+  guestId        String?
+  sourceCurrency String
+  targetCurrency String
+  rate           Decimal  @db.Decimal(14, 6)
+  sourceAmount   Decimal  @db.Decimal(14, 2)
+  targetAmount   Decimal  @db.Decimal(14, 2)
+  exchangedAt    DateTime
+  recordedAt     DateTime @default(now())
+
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user  User?  @relation("ExchangeUser", fields: [userId], references: [id], onDelete: SetNull)
+  guest Guest? @relation("ExchangeGuest", fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([userId])
+  @@index([guestId])
 }
