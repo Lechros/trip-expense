@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import React, { useState, useCallback, useEffect } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
 import {
   ExchangeAddSheet,
   type ExchangeFormValue,
@@ -36,51 +35,53 @@ type MockExchangeRecord = {
   exchangedAt: string;
 };
 
+/** rate = 1 target = rate 원. 항상 원화 결제 → 외화 수령 */
 const INITIAL_RECORDS: MockExchangeRecord[] = [
   {
     id: "1",
     exchangedBy: "김철수",
     sourceCurrency: "KRW",
     targetCurrency: "JPY",
-    rate: 0.106,
+    rate: 9.4,
     sourceAmount: 100000,
-    targetAmount: 10600,
+    targetAmount: 10638,
     exchangedAt: "2025-02-20",
   },
   {
     id: "2",
     exchangedBy: "김철수",
-    sourceCurrency: "JPY",
-    targetCurrency: "KRW",
-    rate: 9.4,
-    sourceAmount: 10000,
-    targetAmount: 94000,
+    sourceCurrency: "KRW",
+    targetCurrency: "JPY",
+    rate: 9.45,
+    sourceAmount: 50000,
+    targetAmount: 5291,
     exchangedAt: "2025-02-19",
   },
   {
     id: "3",
     exchangedBy: "이영희",
-    sourceCurrency: "JPY",
-    targetCurrency: "KRW",
-    rate: 9.35,
-    sourceAmount: 50000,
-    targetAmount: 467500,
+    sourceCurrency: "KRW",
+    targetCurrency: "USD",
+    rate: 1350,
+    sourceAmount: 1000000,
+    targetAmount: 740,
     exchangedAt: "2025-02-18",
   },
 ];
 
+/** 폼에서 결제/수령 금액 모두 전달됨(둘 중 하나 입력 시 다른 쪽 자동 계산된 상태) */
 function formValueToRecord(
   form: ExchangeFormValue,
   id: string
 ): MockExchangeRecord {
   const rate = Number(form.rate);
   const sourceAmount = Number(form.sourceAmount);
-  const targetAmount = Math.round(rate * sourceAmount);
+  const targetAmount = Number(form.targetAmount);
   const exchangedAt = form.exchangedAt.slice(0, 16);
   return {
     id,
     exchangedBy: form.exchangedBy,
-    sourceCurrency: form.sourceCurrency,
+    sourceCurrency: "KRW",
     targetCurrency: form.targetCurrency,
     rate,
     sourceAmount,
@@ -89,13 +90,19 @@ function formValueToRecord(
   };
 }
 
+/** 소수 2자리까지 문자열로 (수정 폼 표시용) */
+function amountToFormString(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 function recordToFormValue(record: MockExchangeRecord): ExchangeFormValue {
   return {
     exchangedBy: record.exchangedBy,
-    sourceCurrency: record.sourceCurrency,
+    sourceCurrency: "KRW",
     targetCurrency: record.targetCurrency,
     rate: String(record.rate),
-    sourceAmount: String(record.sourceAmount),
+    sourceAmount: amountToFormString(record.sourceAmount),
+    targetAmount: amountToFormString(record.targetAmount),
     exchangedAt:
       record.exchangedAt.length >= 16
         ? record.exchangedAt
@@ -103,8 +110,35 @@ function recordToFormValue(record: MockExchangeRecord): ExchangeFormValue {
   };
 }
 
+/** 수령 금액용. 소수 2자리까지 표시 */
 function formatAmount(amount: number, currency: string): string {
-  return `${amount.toLocaleString("ko-KR")} ${currency}`;
+  const opts: Intl.NumberFormatOptions = { maximumFractionDigits: 2, minimumFractionDigits: 0 };
+  if (currency === "KRW") return `${amount.toLocaleString("ko-KR", opts)}원`;
+  return `${amount.toLocaleString("ko-KR", opts)} ${currency}`;
+}
+
+/** 메인 목록용 환율 표기: 1 외화 = rate 원 (소수 2자리) */
+function formatRateMain(rate: number, targetCurrency: string): string {
+  const opts: Intl.NumberFormatOptions = { maximumFractionDigits: 2, minimumFractionDigits: 0 };
+  return `1 ${targetCurrency} = ${rate.toLocaleString("ko-KR", opts)}원`;
+}
+
+/** exchangedAt "2025-02-20" → "2.20" (월.일) */
+function formatMonthDay(exchangedAt: string): string {
+  const [y, m, d] = exchangedAt.slice(0, 10).split("-").map(Number);
+  return `${m}.${d}`;
+}
+
+function getDateKey(exchangedAt: string): string {
+  return exchangedAt.slice(0, 10);
+}
+
+function isCurrentYear(exchangedAt: string): boolean {
+  return new Date(exchangedAt).getFullYear() === new Date().getFullYear();
+}
+
+function getYear(exchangedAt: string): number {
+  return new Date(exchangedAt).getFullYear();
 }
 
 /**
@@ -182,63 +216,104 @@ export function TabExchange() {
   }, [deleteConfirmOpen]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <ul
-        className="flex flex-col gap-2"
-        role="list"
-        aria-label="환전 기록 목록"
-      >
-        {myRecords.map((record) => (
-          <li key={record.id}>
-            <Card
-              className={cn(
-                "transition-colors cursor-pointer hover:bg-muted/50 active:bg-muted",
-                "min-h-12 flex flex-col justify-center touch-manipulation py-4"
-              )}
-              role="button"
-              tabIndex={0}
-              onClick={() => openDetail(record)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") e.preventDefault();
-              }}
-              aria-label={`${record.exchangedBy}, ${formatAmount(record.sourceAmount, record.sourceCurrency)} → ${formatAmount(record.targetAmount, record.targetCurrency)}. 상세 보기`}
-            >
-              <CardContent className="px-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">
-                      {record.exchangedBy}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatAmount(record.sourceAmount, record.sourceCurrency)} →{" "}
-                      {formatAmount(record.targetAmount, record.targetCurrency)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      1 {record.sourceCurrency} = {record.rate.toLocaleString("ko-KR")}{" "}
-                      {record.targetCurrency} · {record.exchangedAt.slice(0, 10)}
-                    </p>
-                  </div>
-                  <RefreshCw
-                    className="size-4 shrink-0 text-muted-foreground mt-0.5"
-                    aria-hidden
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </li>
-        ))}
-      </ul>
+    <div className="flex flex-col min-h-full">
+      {/* 스크롤 영역: 하단 고정 버튼 높이만큼 padding-bottom으로 마지막 항목이 가려지지 않도록 */}
+      <div className="flex flex-col gap-4 pb-28">
+        {/* 상단 영역: 지출 탭과 레이아웃 통일(환전 탭은 필터 등 상단 버튼 없음) */}
+        <div className="flex flex-wrap items-center gap-2 px-4" aria-hidden />
 
-      <Button
-        type="button"
-        size="lg"
-        className="w-full min-h-12 gap-2 touch-manipulation"
-        aria-label="환전 기록 추가"
-        onClick={() => setAddOpen(true)}
-      >
-        <Plus className="size-5" aria-hidden />
-        환전 추가
-      </Button>
+        {/* 목록: 토스 통장형 평면 리스트. 월.일(연속 시 생략). 올해 아닌 구간 맨 위에만 "YYYY년" 표시 */}
+        <ul className="flex flex-col" role="list" aria-label="환전 기록 목록">
+        {myRecords.map((record, index) => {
+          const dateKey = getDateKey(record.exchangedAt);
+          const prevDateKey =
+            index > 0 ? getDateKey(myRecords[index - 1].exchangedAt) : "";
+          const showDate = dateKey !== prevDateKey;
+          const recordYear = getYear(record.exchangedAt);
+          const prevYear =
+            index > 0 ? getYear(myRecords[index - 1].exchangedAt) : null;
+          const showYearHeader =
+            !isCurrentYear(record.exchangedAt) &&
+            (prevYear === null || prevYear !== recordYear);
+
+          return (
+            <React.Fragment key={record.id}>
+              {showYearHeader && (
+                <li
+                  className={cn(
+                    "pt-3 pb-1 px-4",
+                    index > 0 && "border-t border-border"
+                  )}
+                  aria-hidden
+                >
+                  <p className="text-sm text-muted-foreground">
+                    {recordYear}년
+                  </p>
+                </li>
+              )}
+              <li>
+                <button
+                  type="button"
+                  className={cn(
+                    "w-full py-4 text-left",
+                    "transition-colors hover:bg-muted/50 active:bg-muted touch-manipulation min-h-14"
+                  )}
+                  onClick={() => openDetail(record)}
+                  aria-label={`${formatRateMain(record.rate, record.targetCurrency)}, 수령 ${formatAmount(record.targetAmount, record.targetCurrency)}. 상세 보기`}
+                >
+                  <div className="flex items-start gap-3 px-4">
+                    <div className="w-11 shrink-0 h-5 flex items-center text-muted-foreground">
+                      {showDate ? (
+                        <span className="text-sm tabular-nums">
+                          {formatMonthDay(record.exchangedAt)}
+                        </span>
+                      ) : (
+                        <span
+                          className="invisible text-sm tabular-nums"
+                          aria-hidden
+                        >
+                          {formatMonthDay(record.exchangedAt)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 flex items-center">
+                      <p className="text-sm text-muted-foreground truncate min-w-0">
+                        {formatRateMain(record.rate, record.targetCurrency)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 h-5 flex items-center">
+                      <span className="text-lg font-semibold tabular-nums text-foreground">
+                        {formatAmount(record.targetAmount, record.targetCurrency)}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </li>
+            </React.Fragment>
+          );
+        })}
+        </ul>
+      </div>
+
+      {/* 하단 고정: 그라데이션(클릭 통과) + 환전 추가 버튼 */}
+      <div className="fixed bottom-0 left-0 right-0 z-10">
+        <div
+          className="h-8 w-full bg-gradient-to-t from-background to-transparent pointer-events-none"
+          aria-hidden
+        />
+        <div className="px-4 pt-1 pb-4 bg-background">
+          <Button
+            type="button"
+            size="lg"
+            className="w-full min-h-12 gap-2 touch-manipulation"
+            aria-label="환전 기록 추가"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="size-5" aria-hidden />
+            환전 추가
+          </Button>
+        </div>
+      </div>
 
       <ExchangeAddSheet
         open={addOpen}
