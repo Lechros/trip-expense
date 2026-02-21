@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Plane, LogIn, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 export function LandingHero() {
   return (
@@ -37,39 +38,35 @@ export function LandingHero() {
             </p>
           </section>
 
-          {/* 액션 카드: 로그인 / 여행 참여 */}
-          <section className="grid gap-4 sm:grid-cols-2">
-            <Card size="sm" className="flex flex-col transition-shadow hover:shadow-md">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <LogIn className="size-4 text-primary" />
-                  로그인
-                </CardTitle>
-                <CardDescription>
-                  Google 등 소셜 계정으로 로그인해 여행을 만들고 참여하세요.
-                </CardDescription>
+          {/* 액션: 단일 카드 내 로그인 / 여행 참여 안내 */}
+          <section>
+            <Card className="flex flex-col transition-shadow hover:shadow-md">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base">시작하기</CardTitle>
               </CardHeader>
-              <CardContent className="mt-auto pt-0">
-                <Button asChild className="w-full" size="lg">
-                  <Link href="/login">로그인하기</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card size="sm" className="flex flex-col transition-shadow hover:shadow-md">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Link2 className="size-4 text-primary" />
-                  여행 참여하기
-                </CardTitle>
-                <CardDescription>
-                  초대 링크를 받으셨다면, 여기서 6자리 초대 코드로 참여할 수 있어요.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto pt-0">
-                <Button asChild variant="outline" className="w-full" size="lg">
-                  <Link href="/join">참여하기</Link>
-                </Button>
+              <CardContent className="flex flex-col gap-6 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <LogIn className="size-4 shrink-0 text-primary" />
+                    <span className="font-medium text-foreground">로그인</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    로그인해 여행을 만들고 초대할 수 있어요.
+                  </p>
+                  <Button asChild className="w-full" size="lg">
+                    <Link href="/login">로그인하기</Link>
+                  </Button>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="size-4 shrink-0 text-primary" />
+                    <span className="font-medium text-foreground">여행 참여하기</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    초대 링크를 받았다면 해당 링크로 접속한 뒤, 여행 비밀번호를 입력하면 참여할 수 있어요.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </section>

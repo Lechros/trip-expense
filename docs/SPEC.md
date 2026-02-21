@@ -25,32 +25,34 @@
 
 - **목적**: 가입 없이 참여하되, 여러 기기에서 한 여행에 접속할 때 동일 게스트로 동기화할 수 있도록 함.
 - **범위(여행 단위)**: 비회원은 **여행 단위로만 존재**한다. 한 게스트는 항상 특정 여행 하나에만 속하며, 동일 사람이 다른 여행에 비회원으로 참여하면 **여행마다 별도 게스트**로 취급된다. 시스템·UI·API에서 이 범위가 드러나야 한다(예: 게스트 식별은 항상 `tripId + guestId` 조합, 여행 전환 시 해당 여행의 멤버십만 사용).
-- **참여**: 회원과 동일하게 **참여 링크 + 6자리 초대 코드**로 참여.
-- **게스트 계정**: 각 게스트는 **이름(displayName) + 비밀번호**로 식별. 비밀번호는 서버에 해시 저장. 다른 기기에서 같은 게스트로 들어오려면 "여행 초대 링크 접속 → 기존 비회원 선택 → 해당 비밀번호 입력"으로 본인 검증.
+- **참여**: 회원과 동일하게 **초대 링크**(여행 id 포함)로 참여한다. 해당 여행에 접속하려면 **링크(여행 id)와 여행 비밀번호를 모두 입력**해야 한다. 링크만으로는 참여 화면 진입이 불가하다.
+- **게스트 계정**: 각 게스트는 **이름(displayName) + 비밀번호**로 식별. 비밀번호는 서버에 해시 저장. 다른 기기에서 같은 게스트로 들어오려면 "초대 링크 접속 → 여행 비밀번호 입력 → 기존 비회원 선택 → 해당 게스트 비밀번호 입력"으로 본인 검증.
 - **권한**: 회원·비회원 구분 없이, **여행의 owner인지 여부**로만 구분(§2.3).
 
 #### 2.2.1 게스트 참여 화면 플로우(링크 접속 시, 다른 기기 포함)
 
-사용자가 **여행 참여 링크**로 접속했을 때(초기 진입 또는 다른 기기에서 재접속) 아래 순서로 진행한다.
+사용자가 **초대 링크**(여행 id 포함)로 접속했을 때(초기 진입 또는 다른 기기에서 재접속) 아래 순서로 진행한다. **링크(여행 id)와 여행 비밀번호를 모두 입력**해야 참여 단계로 진행할 수 있다.
 
-1. **진입 조건**: 여행의 6자리 **초대 코드** 입력(필수).
+1. **진입**: 사용자는 초대 링크를 통해 참여 화면에 도달한다. 링크에 포함된 **여행 id**로 해당 여행이 식별된다.
 
-2. **참여 방식 선택**
-   - **소셜 로그인 버튼**: 회원으로 로그인하여 해당 여행에 회원으로 참여.
-   - **비회원으로 진행**: 아래 3번으로 이동.
+2. **여행 비밀번호 입력**: 링크로 식별된 여행에 접속하려면 **여행 비밀번호**를 입력해야 한다. 비밀번호 검증 성공 시에만 참여 방식 선택으로 이동한다.
 
-3. **비회원으로 진행 선택 시 (화면 2-1)**
-   - **뒤로가기**: 2번(참여 방식 선택)으로 복귀.
+3. **참여 방식 선택**
+   - **회원으로 참여**: 로그인 여부에 따라 다르게 표시한다. 비로그인 시 로그인 버튼을 노출하여 로그인 후 해당 여행에 회원으로 참여한다. 로그인 상태일 때는 (회원 표시명)으로 참여하기 버튼을 노출한다.
+   - **비회원으로 진행**: 아래 4번으로 이동.
+
+4. **비회원으로 진행 선택 시**
+   - **뒤로가기**: 3번(참여 방식 선택)으로 복귀 가능.
    - **현재 존재하는 비회원 목록**: 이 여행에 이미 등록된 게스트 목록 표시(displayName 등 식별용).
-   - **새 비회원 추가** 버튼: 신규 게스트 생성(5번)으로 이동.
+   - **새 비회원 추가** 버튼: 신규 게스트 생성(6번)으로 이동.
 
-4. **기존 비회원 선택 시 (3-1)**
+5. **기존 비회원 선택 시**
    - 목록에서 한 명 선택 → **해당 게스트의 비밀번호** 입력.
    - 검증 성공 시 해당 게스트로 로그인하여 여행 화면 진입(다른 기기 동기화).
 
-5. **새 비회원 추가 시 (3-2)**
+6. **새 비회원 추가 시**
    - **이름**(displayName), **비밀번호**, **비밀번호 확인** 입력 후 생성.
-   - 생성 성공 시 해당 게스트로 로그인하여 여행 화면 진입. 다른 기기에서는 3번에서 이 게스트 선택 후 비밀번호로 로그인하면 동일 인물로 동기화됨.
+   - 생성 성공 시 해당 게스트로 로그인하여 여행 화면 진입. 다른 기기에서는 4번에서 이 게스트 선택 후 비밀번호로 로그인하면 동일 인물로 동기화됨.
 
 ### 2.3 권한
 
@@ -73,7 +75,9 @@
 ### 3.1 정의
 
 - 생성: 회원만. 이름, 기간(시작일–종료일), 국가(ISO country code) 필수. 생성자가 owner.
-- 참여: **회원·비회원 모두** 참여 링크 + 6자리 초대 코드로 참여. 내가 속한 여행만 목록 노출.
+- **초대 링크**: 여행 id가 포함된 URL. 링크를 가진 사용자가 해당 여행에 접속(참여)하려면 **여행 비밀번호**를 함께 입력해야 한다.
+- 참여: **회원·비회원 모두** 초대 링크(여행 id) + 여행 비밀번호로 참여. 내가 속한 여행만 목록 노출.
+- **공개 여부**: 설정에서 여행의 공개 여부를 지정한다. **공개**(링크를 가진 사용자만 접근 가능)로 설정한 경우 **여행 비밀번호를 반드시 설정**해야 한다. 비공개 여행은 링크·비밀번호 방식의 참여를 사용하지 않거나 별도 정책으로 정의.
 - 통화: 기본 통화 KRW 고정. 추가 통화 1개만 허용(예: JPY 또는 USD). 즉 최대 2통화.
 - 접근: 모든 trip 하위 API에서 요청자가 해당 trip 멤버(회원 또는 게스트)인지 검증 필수.
 
@@ -171,6 +175,7 @@
 
 - 접근: 여행 내 설정(톱니바퀴).
 - 여행 설정: 이름, 설명, 기간, 국가, 기본/추가 통화. 수정 권한: owner만.
+- **공개 여부**: 비공개 / 공개(링크를 가진 사용자만 접근 가능). **공개로 설정 시 여행 비밀번호를 반드시 설정**하도록 한다. 여행 비밀번호는 참여 시 링크와 함께 입력하는 값이며, 해시 저장.
 - 멤버 관리: owner만. 멤버 목록, 내보내기. owner 자신은 제거 불가; 제거 시 "다른 멤버에게 owner 이전" 후 제거. 단 비회원에게 이전 불가.
 - 데이터: 기간 변경 시 유효성 검사 없음. 멤버 제거 시 해당 멤버가 포함된 기존 항목은 유지, 표시 시 "탈퇴한 멤버" 라벨. 정산 계산에는 포함.
 
@@ -213,7 +218,7 @@
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | User                  | id, email, passwordHash 또는 oauthId, createdAt                                                                                                                 |
 | Guest                 | id, tripId, displayName, colorHex, passwordHash, createdAt. **여행 단위로만 존재**: 한 레코드는 한 여행에만 속함. 동일 사람이 다른 여행에 비회원 참여 시 여행마다 별도 Guest. 다른 기기 복원 시 비밀번호로 검증. |
-| Trip                  | id, name, description?, startDate, endDate, countryCode, baseCurrency(KRW), additionalCurrencies(배열, 최대 1개), inviteCode(6자리), createdByUserId, createdAt |
+| Trip                  | id, name, description?, startDate, endDate, countryCode, baseCurrency(KRW), additionalCurrencies(배열, 최대 1개), visibility(공개 여부), passwordHash(공개 시 여행 비밀번호 해시), createdByUserId, createdAt. 링크에는 id가 포함됨. 공개 여행은 passwordHash 필수. |
 | TripMember            | id, tripId, userId?, guestId?, displayName, colorHex, role(owner/member), joinedAt. userId/guestId 둘 중 하나 필수. owner는 생성자 1명                          |
 | SettlementEntry       | id, tripId, paidByUserId?, paidByGuestId?, recordedByUserId?, recordedByGuestId?, amount, currency, paidAt, recordedAt, memo?, deletedAt?                       |
 | SettlementBeneficiary | entryId, userId 또는 guestId (N:N)                                                                                                                              |
@@ -228,7 +233,7 @@
 
 - 인증: `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET /me`, `PATCH /me`
 - 여행: `GET /trips`, `POST /trips`, `GET /trips/:id`, `PATCH /trips/:id`, `POST /trips/join`
-- **참여**: `GET /trips/join-info?code=XXXXXX`(초대 코드) → trip 정보, 기존 게스트 목록(displayName 등 식별용). `POST /trips/join` body: 초대 코드, (회원이면 토큰으로 회원 참여) (게스트면) 기존 게스트 참여 시 `guestId` + `password` / 신규 게스트 시 `displayName`, `password`, `passwordConfirm`, (선택) `colorHex`.
+- **참여**: `GET /trips/join-info`(tripId, 여행 비밀번호) → trip 정보, 기존 게스트 목록(displayName 등 식별용). 여행 비밀번호 검증 후 반환. `POST /trips/join` body: tripId, 여행 비밀번호, (회원이면 토큰으로 회원 참여) (게스트면) 기존 게스트 참여 시 `guestId` + `password` / 신규 게스트 시 `displayName`, `password`, `passwordConfirm`, (선택) `colorHex`.
 - 멤버: `GET /trips/:tripId/members`, `PATCH /trips/:tripId/members/:memberId`, `DELETE /trips/:tripId/members/:memberId` (owner만)
 - 정산 항목: `GET /trips/:tripId/entries`, `POST /trips/:tripId/entries`, `PATCH /trips/:tripId/entries/:id`, `DELETE /trips/:tripId/entries/:id` (soft delete)
 - 환전: `GET /trips/:tripId/exchanges`, `POST /trips/:tripId/exchanges`, `PATCH`, `DELETE`
@@ -243,6 +248,7 @@
 - 인증: 여행/정산 API는 인증 필수. 게스트는 여행별 토큰 또는 제한된 API로 식별.
 - 권한: tripId 포함 요청 시 TripMember 기반 접근 검증(미들웨어 또는 서비스 레이어).
 - 입력: 금액·날짜·FK 백엔드에서 Zod 재검증. DB 제약(NOT NULL, CHECK, FK) 병행.
+- 여행 비밀번호: 공개 여행은 passwordHash 저장. 참여 시 링크(여행 id)와 함께 입력한 비밀번호로 검증 후 접근 허용.
 - 게스트 비밀번호: 저장 시 해시만 저장. 기존 게스트 선택 시 비밀번호 검증 후 해당 guestId로 토큰(또는 세션) 발급.
 - 정산 항목: paidBy, beneficiaries가 해당 trip 소속인지 검증.
 - 멤버 제거·역할 변경·owner 이전: owner만 허용하도록 API에서 강제.
