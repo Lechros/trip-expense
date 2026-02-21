@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabExpenses } from "./tab-expenses";
 import { TabExchange } from "./tab-exchange";
+import { TabSettlement } from "./tab-settlement";
 
 const TABS = [
   { id: "expenses" as const, label: "지출", icon: Receipt },
@@ -95,7 +96,7 @@ export function TripPage({ tripId }: TripPageProps) {
             <TabExchange />
           )}
           {tab === "settlement" && (
-            <TabSettlementPlaceholder />
+            <TabSettlement />
           )}
           {tab === "settings" && (
             <TabSettingsPlaceholder />
@@ -103,27 +104,6 @@ export function TripPage({ tripId }: TripPageProps) {
         </div>
       </main>
     </div>
-  );
-}
-
-function TabSettlementPlaceholder() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calculator className="size-4 text-primary" />
-          정산
-        </CardTitle>
-        <CardDescription>
-          기준 통화(KRW) 환산, 멤버별 결제/사용 금액·차이, 이체 목록(A가 B에게 X원). 환전 기록 없음 시 안내.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          (정산 결과·이체 목록 UI 설계 예정)
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 
