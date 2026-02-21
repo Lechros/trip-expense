@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
+import { Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TabExpenses } from "./tab-expenses";
 import { TabExchange } from "./tab-exchange";
@@ -32,27 +31,13 @@ export function TripPage({ tripId }: TripPageProps) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="shrink-0 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-6">
-        <div className="mx-auto flex max-w-lg items-center gap-3">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="shrink-0 -ml-1"
-            aria-label="여행 목록으로"
-          >
-            <Link href="/">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Plane aria-hidden />
-            </div>
-            <span className="truncate text-base font-semibold tracking-tight text-foreground">
-              여행 이름
-            </span>
+        <div className="mx-auto flex max-w-lg items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Plane aria-hidden />
           </div>
-          <div className="w-9 shrink-0" aria-hidden />
+          <span className="truncate text-base font-semibold tracking-tight text-foreground">
+            여행 이름
+          </span>
         </div>
       </header>
 
