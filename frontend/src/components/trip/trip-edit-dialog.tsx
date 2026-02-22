@@ -17,25 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
-
-/** 국가 목록 (ISO 3166-1 alpha-2). 연동 시 필요 목록으로 교체 */
-const COUNTRY_OPTIONS = [
-  { value: "KR", label: "대한민국" },
-  { value: "JP", label: "일본" },
-  { value: "US", label: "미국" },
-  { value: "CN", label: "중국" },
-  { value: "TH", label: "태국" },
-  { value: "VN", label: "베트남" },
-  { value: "SG", label: "싱가포르" },
-  { value: "TW", label: "대만" },
-  { value: "HK", label: "홍콩" },
-  { value: "GB", label: "영국" },
-  { value: "FR", label: "프랑스" },
-  { value: "DE", label: "독일" },
-  { value: "IT", label: "이탈리아" },
-  { value: "ES", label: "스페인" },
-  { value: "AU", label: "호주" },
-];
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 
 /** 추가 통화 '선택 안 함'용 값 (Select는 빈 문자열 value 불가) */
 const ADDITIONAL_CURRENCY_NONE = "__none__";

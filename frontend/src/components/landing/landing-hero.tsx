@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Plane, LogIn, Link2 } from "lucide-react";
+import { Plane, LogIn, Link2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { useAuthStore } from "@/stores/auth";
 
 export function LandingHero() {
+  const user = useAuthStore((s) => s.user);
+
   return (
     <div className="flex min-h-dvh flex-col">
       {/* 상단 브랜드 영역 */}
@@ -47,14 +50,24 @@ export function LandingHero() {
               <CardContent className="flex flex-col gap-6 pt-0">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <LogIn className="size-4 shrink-0 text-primary" />
-                    <span className="font-medium text-foreground">로그인</span>
+                    {user ? (
+                      <MapPin className="size-4 shrink-0 text-primary" />
+                    ) : (
+                      <LogIn className="size-4 shrink-0 text-primary" />
+                    )}
+                    <span className="font-medium text-foreground">
+                      {user ? "내 여행" : "로그인"}
+                    </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    로그인해 여행을 만들고 초대할 수 있어요.
+                    {user
+                      ? "여행 목록에서 만들거나 참여한 여행을 확인하세요."
+                      : "로그인해 여행을 만들고 초대할 수 있어요."}
                   </p>
                   <Button asChild className="w-full" size="lg">
-                    <Link href="/login">로그인하기</Link>
+                    <Link href={user ? "/trips" : "/login"}>
+                      {user ? "내 여행 보기" : "로그인하기"}
+                    </Link>
                   </Button>
                 </div>
                 <Separator />

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TabExpenses } from "./tab-expenses";
 import { TabExchange } from "./tab-exchange";
 import { TabSettlement } from "./tab-settlement";
 import { TabSettings } from "./tab-settings";
+import { apiFetch } from "@/lib/api";
 
 const TABS = [
   { id: "expenses" as const, label: "지출", icon: Receipt },
@@ -23,10 +25,19 @@ type TripPageProps = {
 
 /**
  * 여행 페이지: [지출, 환전, 정산, 설정] 4탭.
- * SPEC §4.4(지출), §5(환전), §6(정산), §7(설정).
+ * GET /trips/:id로 여행 정보 로드 후 헤더에 이름 표시.
  */
 export function TripPage({ tripId }: TripPageProps) {
+  const router = useRouter();
   const [tab, setTab] = useState<TabId>("expenses");
+  const [tripName, setTripName] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ trip?: { name: string } }>(`/trips/${tripId}`).then((res) => {
+      if (res.ok && res.data.trip) setTripName(res.data.trip.name);
+      if (res.status === 403) router.replace("/trips");
+    });
+  }, [tripId, router]);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -36,7 +47,7 @@ export function TripPage({ tripId }: TripPageProps) {
             <Plane aria-hidden />
           </div>
           <span className="truncate text-base font-semibold tracking-tight text-foreground">
-            여행 이름
+            {tripName ?? "…"}
           </span>
         </div>
       </header>

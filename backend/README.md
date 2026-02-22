@@ -25,11 +25,11 @@ Prisma 7에서는 런타임 DB 연결을 위해 **Driver Adapter**(`@prisma/adap
 - 빌드: `pnpm run build`
 - 프로덕션: `pnpm start`
 
-## API (M1 기준)
+## API (인증)
 
 - `GET /health` — 헬스 체크
-- `POST /auth/register` — 회원 가입 (body: `email`, `password`)
-- `POST /auth/login` — 로그인 (body: `email`, `password`)
+- `GET /auth/google` — Google 로그인 시작 (리다이렉트)
+- `GET /auth/google/callback` — Google OAuth 콜백, JWT 발급 후 프론트 리다이렉트
 - `POST /auth/refresh` — 토큰 갱신 (body: `refreshToken`)
 - `GET /me` — 현재 사용자 (Header: `Authorization: Bearer <accessToken>`)
 - `PATCH /me` — 프로필 수정 (추후 확장)

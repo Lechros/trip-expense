@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
 import { TripEditDialog, type TripForm } from "./trip-edit-dialog";
+import { COUNTRY_LABELS } from "@/lib/countries";
 
 /**
  * 설정 탭. SPEC §7: 여행 설정(이름, 설명, 기간, 국가, 통화), 공개 여부·여행 비밀번호, 멤버 관리(owner만).
@@ -36,12 +37,6 @@ const MOCK_MEMBERS: MockMember[] = [
   { id: "2", displayName: "이영희", role: "member" },
   { id: "3", displayName: "박민수", role: "member" },
 ];
-
-const COUNTRY_LABELS: Record<string, string> = {
-  KR: "대한민국", JP: "일본", US: "미국", CN: "중국", TH: "태국", VN: "베트남",
-  SG: "싱가포르", TW: "대만", HK: "홍콩", GB: "영국", FR: "프랑스", DE: "독일",
-  IT: "이탈리아", ES: "스페인", AU: "호주",
-};
 
 export function TabSettings() {
   const [trip, setTrip] = useState<TripForm>(INITIAL_TRIP);
