@@ -23,12 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
 
-/** 수령 통화 옵션 (원화 고정이므로 KRW 제외). 연동 시 트립 허용 통화로 교체 */
-const TARGET_CURRENCIES = [
-  { value: "JPY", label: "JPY (엔)" },
-  { value: "USD", label: "USD (달러)" },
-];
-
 export type ExchangeFormValue = {
   exchangedBy: string;
   sourceCurrency: string;
@@ -41,17 +35,21 @@ export type ExchangeFormValue = {
   exchangedAt: string;
 };
 
-const getDefaultFormValue = (defaultExchangedBy?: string): ExchangeFormValue => {
+function getDefaultFormValue(
+  defaultExchangedBy?: string,
+  sourceCurrency = "KRW",
+  targetCurrency = ""
+): ExchangeFormValue {
   return {
     exchangedBy: defaultExchangedBy ?? "",
-    sourceCurrency: "KRW",
-    targetCurrency: "JPY",
+    sourceCurrency,
+    targetCurrency: targetCurrency || sourceCurrency,
     rate: "",
     sourceAmount: "",
     targetAmount: "",
     exchangedAt: new Date().toISOString().slice(0, 16),
   };
-};
+}
 
 /** 소수 2자리까지 유지 */
 function toDecimal2(value: number): string {
@@ -72,11 +70,19 @@ function sourceFromTarget(rate: number, targetAmount: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2);
 }
 
+export type TargetCurrencyOption = { value: string; label: string };
+
 type ExchangeAddSheetProps = {
   open: boolean;
   onClose: () => void;
   onSubmit: (value: ExchangeFormValue, editId?: string) => void;
   defaultExchangedBy?: string;
+  /** 여행 기본 통화 (결제 쪽). 미제공 시 KRW */
+  baseCurrency?: string;
+  /** 수령 통화 옵션 (여행 추가 통화 1개). 비어 있으면 추가 불가 안내 표시 */
+  targetCurrencyOptions?: TargetCurrencyOption[];
+  /** 추가 모드일 때 기본 수령 통화 (여행 추가 통화와 일치) */
+  defaultTargetCurrency?: string;
   initialValue?: ExchangeFormValue | null;
   editId?: string | null;
 };
@@ -89,12 +95,18 @@ export function ExchangeAddSheet({
   onClose,
   onSubmit,
   defaultExchangedBy,
+  baseCurrency = "KRW",
+  targetCurrencyOptions = [],
+  defaultTargetCurrency,
   initialValue,
   editId,
 }: ExchangeAddSheetProps) {
   const isEdit = Boolean(editId && initialValue);
+  const canAddExchange = isEdit || targetCurrencyOptions.length > 0;
+  const defaultTarget = defaultTargetCurrency ?? targetCurrencyOptions[0]?.value ?? "";
+
   const [form, setForm] = useState<ExchangeFormValue>(() =>
-    initialValue ?? getDefaultFormValue(defaultExchangedBy)
+    initialValue ?? getDefaultFormValue(defaultExchangedBy, baseCurrency, defaultTarget)
   );
 
   const rateNum = Number(form.rate);
@@ -102,12 +114,13 @@ export function ExchangeAddSheet({
   useEffect(() => {
     if (open) {
       if (initialValue) setForm(initialValue);
-      else setForm(getDefaultFormValue(defaultExchangedBy));
+      else setForm(getDefaultFormValue(defaultExchangedBy, baseCurrency, defaultTarget));
     }
-  }, [open, initialValue, defaultExchangedBy]);
+  }, [open, initialValue, defaultExchangedBy, baseCurrency, defaultTarget]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddExchange) return;
     const rate = Number(form.rate);
     const sourceNum = Number(form.sourceAmount);
     const targetNum = Number(form.targetAmount);
@@ -136,7 +149,7 @@ export function ExchangeAddSheet({
       editId ?? undefined
     );
     setForm({
-      ...getDefaultFormValue(defaultExchangedBy),
+      ...getDefaultFormValue(defaultExchangedBy, baseCurrency, defaultTarget),
       exchangedAt: new Date().toISOString().slice(0, 16),
     });
     onClose();
@@ -144,7 +157,7 @@ export function ExchangeAddSheet({
 
   const handleClose = () => {
     setForm({
-      ...getDefaultFormValue(defaultExchangedBy),
+      ...getDefaultFormValue(defaultExchangedBy, baseCurrency, defaultTarget),
       exchangedAt: new Date().toISOString().slice(0, 16),
     });
     onClose();
@@ -184,6 +197,12 @@ export function ExchangeAddSheet({
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-28 pt-6">
+            {!canAddExchange ? (
+              <p className="text-muted-foreground text-sm py-2">
+                여행에 추가 통화가 없습니다. 설정 탭에서 추가 통화를 지정한 뒤 환전 기록을 추가할 수 있습니다.
+              </p>
+            ) : (
+            <>
             <div className="space-y-2">
               <Label htmlFor="exchange-targetCurrency" className="text-muted-foreground text-sm">
                 수령 통화
@@ -198,7 +217,7 @@ export function ExchangeAddSheet({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TARGET_CURRENCIES.map((c) => (
+                  {targetCurrencyOptions.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
                     </SelectItem>
@@ -309,6 +328,8 @@ export function ExchangeAddSheet({
                 className="min-h-12 w-full bg-transparent"
               />
             </div>
+            </>
+            )}
           </div>
 
           <div className="fixed bottom-0 left-0 right-0 z-10 w-full">
@@ -331,6 +352,7 @@ export function ExchangeAddSheet({
                 size="lg"
                 className="min-h-12 flex-1 touch-manipulation"
                 disabled={
+                  !canAddExchange ||
                   !form.exchangedBy ||
                   !(Number(form.rate) > 0) ||
                   (!(Number(form.sourceAmount) > 0) && !(Number(form.targetAmount) > 0))

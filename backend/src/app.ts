@@ -4,6 +4,7 @@ import cookie from '@fastify/cookie';
 import { authRoutes } from './routes/auth.js';
 import { tripRoutes } from './routes/trips.js';
 import { entryRoutes } from './routes/entries.js';
+import { exchangeRoutes } from './routes/exchanges.js';
 
 export type BuildAppOptions = {
   logger?: boolean;
@@ -21,6 +22,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(cors, {
     origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.get('/health', async () => ({ status: 'ok' }));
@@ -28,6 +31,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(authRoutes);
   await app.register(tripRoutes);
   await app.register(entryRoutes, { prefix: '/trips/:tripId' });
+  await app.register(exchangeRoutes, { prefix: '/trips/:tripId' });
 
   return app;
 }

@@ -1,48 +1,127 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
 import { TripEditDialog, type TripForm } from "./trip-edit-dialog";
 import { COUNTRY_LABELS } from "@/lib/countries";
+import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth";
 
 /**
  * 설정 탭. SPEC §7: 여행 설정(이름, 설명, 기간, 국가, 통화), 공개 여부·여행 비밀번호, 멤버 관리(owner만).
- * 여행 설정·공개 여부는 "수정" 버튼으로 편집 시트에서 변경. 저장은 목업(로컬 상태만 반영).
+ * GET /trips/:id, GET /trips/:tripId/members 로 데이터 로드, PATCH /trips/:id 로 저장 (owner만).
  */
 
-/** 목업: 현재 사용자가 owner인지 */
-const MOCK_IS_OWNER = true;
-
-const INITIAL_TRIP: TripForm = {
-  name: "제주도 여행",
-  description: "2025년 2월 제주 3박 4일",
-  startDate: "2025-02-18",
-  endDate: "2025-02-21",
-  countryCode: "KR",
-  baseCurrency: "KRW",
-  additionalCurrency: "JPY",
-  isPublic: false,
-  hasPassword: false,
+type ApiTrip = {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  countryCode: string;
+  baseCurrency: string;
+  additionalCurrency: string | null;
+  isPublic: boolean;
+  createdAt: string;
 };
 
-type MockMember = {
+type ApiMember = {
   id: string;
   displayName: string;
-  role: "owner" | "member";
+  role: string;
+  userId: string | null;
+  guestId: string | null;
 };
 
-const MOCK_MEMBERS: MockMember[] = [
-  { id: "1", displayName: "김철수", role: "owner" },
-  { id: "2", displayName: "이영희", role: "member" },
-  { id: "3", displayName: "박민수", role: "member" },
-];
+function apiTripToForm(t: ApiTrip): TripForm {
+  const startDate = t.startDate.slice(0, 10);
+  const endDate = t.endDate.slice(0, 10);
+  return {
+    name: t.name,
+    description: t.description ?? "",
+    startDate,
+    endDate,
+    countryCode: t.countryCode,
+    baseCurrency: t.baseCurrency,
+    additionalCurrency: t.additionalCurrency ?? "",
+    isPublic: t.isPublic,
+    hasPassword: t.isPublic, // 공개 시 비밀번호 있다고 가정(API는 반환 안 함)
+  };
+}
 
-export function TabSettings() {
-  const [trip, setTrip] = useState<TripForm>(INITIAL_TRIP);
+type TabSettingsProps = { tripId: string };
+
+export function TabSettings({ tripId }: TabSettingsProps) {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const guest = useAuthStore((s) => s.guest);
+
   const [editOpen, setEditOpen] = useState(false);
 
+  const tripQuery = useQuery({
+    queryKey: ["trips", tripId],
+    queryFn: async () => {
+      const res = await apiFetch<{ trip: ApiTrip }>(`/trips/${tripId}`);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load trip");
+      return res.data;
+    },
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["trips", tripId, "members"],
+    queryFn: async () => {
+      const res = await apiFetch<{ members: ApiMember[] }>(`/trips/${tripId}/members`);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load members");
+      return res.data;
+    },
+  });
+
+  const trip: TripForm | null = tripQuery.data?.trip
+    ? apiTripToForm(tripQuery.data.trip)
+    : null;
+  const members = membersQuery.data?.members ?? [];
+  const currentMember = useMemo(
+    () =>
+      user
+        ? members.find((m) => m.userId === user.id)
+        : guest
+          ? members.find((m) => m.id === guest.memberId)
+          : null,
+    [user, guest, members]
+  );
+  const isOwner = currentMember?.role === "owner";
+
   const openEdit = () => setEditOpen(true);
+
+  const handleSave = async (value: TripForm): Promise<void> => {
+    const res = await apiFetch<{ trip: ApiTrip }>(`/trips/${tripId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: value.name,
+        description: value.description || null,
+        startDate: value.startDate,
+        endDate: value.endDate,
+        countryCode: value.countryCode,
+        baseCurrency: "KRW",
+        additionalCurrency: value.additionalCurrency || null,
+        isPublic: value.isPublic,
+        ...(value.isPublic && value.password ? { password: value.password } : undefined),
+      }),
+    });
+    if (!res.ok) throw new Error(res.error ?? "저장에 실패했습니다");
+    queryClient.invalidateQueries({ queryKey: ["trips", tripId] });
+    setEditOpen(false);
+  };
+
+  if (tripQuery.isLoading || !trip) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <p className="text-sm text-muted-foreground">불러오는 중…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-8">
@@ -51,11 +130,11 @@ export function TabSettings() {
         <div className="flex items-center justify-between gap-2 pb-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             여행 설정
-            {!MOCK_IS_OWNER && (
+            {!isOwner && (
               <span className="ml-1.5 text-xs font-normal">(수정 권한: 여행 생성자만)</span>
             )}
           </h2>
-          {MOCK_IS_OWNER && (
+          {isOwner && (
             <Button
               type="button"
               variant="ghost"
@@ -125,13 +204,13 @@ export function TabSettings() {
       <section aria-label="멤버 관리">
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           멤버 관리
-          {!MOCK_IS_OWNER && (
+          {!isOwner && (
             <span className="ml-1.5 text-xs font-normal">(여행 생성자만)</span>
           )}
         </h2>
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <ul className="divide-y divide-border" role="list">
-            {MOCK_MEMBERS.map((m) => (
+            {members.map((m) => (
               <li
                 key={m.id}
                 className="px-4 py-3 flex items-center justify-between gap-2"
@@ -143,7 +222,7 @@ export function TabSettings() {
               </li>
             ))}
           </ul>
-          {MOCK_IS_OWNER && (
+          {isOwner && (
             <div className="px-4 py-3 border-t border-border">
               <button
                 type="button"
@@ -156,11 +235,11 @@ export function TabSettings() {
         </div>
       </section>
 
-<TripEditDialog
+      <TripEditDialog
         open={editOpen}
         onOpenChange={setEditOpen}
         value={trip}
-        onSave={setTrip}
+        onSave={handleSave}
       />
     </div>
   );

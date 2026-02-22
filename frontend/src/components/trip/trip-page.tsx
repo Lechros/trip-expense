@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,17 +20,40 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const TAB_IDS: TabId[] = ["expenses", "exchange", "settlement", "settings"];
+
+function parseTabFromQuery(searchParams: ReturnType<typeof useSearchParams>): TabId {
+  const t = searchParams.get("tab");
+  return t && TAB_IDS.includes(t as TabId) ? (t as TabId) : "expenses";
+}
+
 type TripPageProps = {
   tripId: string;
 };
 
 /**
  * 여행 페이지: [지출, 환전, 정산, 설정] 4탭.
- * trip 데이터는 SSR prefetch 후 useQuery로 즉시 표시.
+ * 탭은 URL ?tab= 에 반영되어 새로고침 시 유지됨.
  */
 export function TripPage({ tripId }: TripPageProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>("expenses");
+  const searchParams = useSearchParams();
+  const [tab, setTabState] = useState<TabId>(() => parseTabFromQuery(searchParams));
+
+  const setTab = useCallback(
+    (next: TabId) => {
+      setTabState(next);
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", next);
+      router.replace(url.pathname + url.search, { scroll: false });
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    const fromUrl = parseTabFromQuery(searchParams);
+    setTabState(fromUrl);
+  }, [searchParams]);
 
   const { data: tripData } = useQuery({
     queryKey: ["trips", tripId],
@@ -94,13 +117,13 @@ export function TripPage({ tripId }: TripPageProps) {
             <TabExpenses tripId={tripId} />
           )}
           {tab === "exchange" && (
-            <TabExchange />
+            <TabExchange tripId={tripId} />
           )}
           {tab === "settlement" && (
             <TabSettlement />
           )}
           {tab === "settings" && (
-            <TabSettings />
+            <TabSettings tripId={tripId} />
           )}
         </div>
       </main>
