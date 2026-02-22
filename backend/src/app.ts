@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import { authRoutes } from './routes/auth.js';
 import { tripRoutes } from './routes/trips.js';
+import { entryRoutes } from './routes/entries.js';
 
 export type BuildAppOptions = {
   logger?: boolean;
@@ -26,6 +27,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(authRoutes);
   await app.register(tripRoutes);
+  await app.register(entryRoutes, { prefix: '/trips/:tripId' });
 
   return app;
 }

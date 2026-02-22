@@ -6,9 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth";
 
+/** 로그인 후 이동할 URL로 허용할 path인지 검사. 같은 오리진의 path만 허용. */
+function isSafeRedirect(path: string | null): path is string {
+  if (!path || typeof path !== "string") return false;
+  if (!path.startsWith("/")) return false;
+  if (path.startsWith("//") || path.includes(":")) return false;
+  return true;
+}
+
 /**
  * OAuth 콜백 (Google 로그인 후 백엔드가 쿠키 설정 후 이 URL로 리다이렉트).
- * GET /me로 사용자 확인 후 /trips로 이동.
+ * GET /me로 사용자 확인 후, state(redirect)가 있으면 해당 path로, 없으면 /trips로 이동.
  */
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -25,10 +33,13 @@ export default function AuthCallbackPage() {
       return;
     }
 
+    const redirect = searchParams.get("state");
+
     checkAuth().then((ok) => {
       if (ok) {
         setStatus("ok");
-        router.replace("/trips");
+        const target = isSafeRedirect(redirect) ? redirect : "/trips";
+        router.replace(target);
         router.refresh();
       } else {
         setErrorMessage("로그인 세션을 확인할 수 없습니다.");

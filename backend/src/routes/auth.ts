@@ -82,7 +82,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, accessTokenCookieOptions());
     reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, refreshTokenCookieOptions());
-    return reply.redirect(`${frontendUrl}${callbackPath}`, 302);
+    const stateParam = query.state ? `?state=${encodeURIComponent(query.state)}` : '';
+    return reply.redirect(`${frontendUrl}${callbackPath}${stateParam}`, 302);
   });
 
   // POST /auth/refresh — 쿠키 또는 body에서 refreshToken. 새 토큰은 쿠키로 설정.

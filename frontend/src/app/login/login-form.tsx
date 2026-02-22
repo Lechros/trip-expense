@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -14,7 +16,10 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export function LoginForm() {
-  const googleLoginUrl = `${API_URL}/auth/google`;
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
+  const googleLoginUrl =
+    `${API_URL}/auth/google` + (redirect ? `?state=${encodeURIComponent(redirect)}` : "");
 
   return (
     <div className="flex flex-col gap-4">

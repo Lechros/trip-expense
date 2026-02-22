@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TabExpenses } from "./tab-expenses";
@@ -25,19 +26,23 @@ type TripPageProps = {
 
 /**
  * 여행 페이지: [지출, 환전, 정산, 설정] 4탭.
- * GET /trips/:id로 여행 정보 로드 후 헤더에 이름 표시.
+ * trip 데이터는 SSR prefetch 후 useQuery로 즉시 표시.
  */
 export function TripPage({ tripId }: TripPageProps) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("expenses");
-  const [tripName, setTripName] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch<{ trip?: { name: string } }>(`/trips/${tripId}`).then((res) => {
-      if (res.ok && res.data.trip) setTripName(res.data.trip.name);
+  const { data: tripData } = useQuery({
+    queryKey: ["trips", tripId],
+    queryFn: async () => {
+      const res = await apiFetch<{ trip?: { name: string } }>(`/trips/${tripId}`);
       if (res.status === 403) router.replace("/trips");
-    });
-  }, [tripId, router]);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load trip");
+      return res.data;
+    },
+  });
+
+  const tripName = tripData?.trip?.name ?? null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -86,7 +91,7 @@ export function TripPage({ tripId }: TripPageProps) {
       <main className="flex flex-1 flex-col overflow-auto py-6 sm:py-8">
         <div className="mx-auto w-full max-w-lg flex flex-1 flex-col">
           {tab === "expenses" && (
-            <TabExpenses />
+            <TabExpenses tripId={tripId} />
           )}
           {tab === "exchange" && (
             <TabExchange />

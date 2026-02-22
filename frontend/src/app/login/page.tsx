@@ -1,7 +1,6 @@
-import Link from "next/link";
-import { ArrowLeft, Plane } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plane } from "lucide-react";
 import { LoginForm } from "./login-form";
+import { LoginBackButton } from "./login-back-button";
 
 /**
  * 로그인 페이지. Google 소셜 로그인만 제공.
@@ -21,12 +20,7 @@ export default function LoginPage() {
       <main className="flex flex-1 flex-col px-4 py-8 sm:px-6 sm:py-12">
         <div className="mx-auto w-full max-w-md flex flex-col gap-8">
           <div className="-mt-1">
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" aria-label="처음으로">
-              <Link href="/">
-                <ArrowLeft className="size-4" />
-                뒤로
-              </Link>
-            </Button>
+            <LoginBackButton />
           </div>
           <section className="space-y-1 text-center">
             <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">로그인</h1>

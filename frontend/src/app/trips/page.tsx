@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Plane, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,9 +28,10 @@ export default async function TripsListPage() {
     headers: { Cookie: cookieStore.toString() },
     cache: "no-store",
   });
+  if (!res.ok) redirect("/login");
   const data = (await res.json().catch(() => ({}))) as { trips?: TripItem[]; error?: string };
-  const trips: TripItem[] = res.ok ? (data.trips ?? []) : [];
-  const error = !res.ok ? (data.error ?? "목록을 불러올 수 없습니다.") : null;
+  const trips: TripItem[] = data.trips ?? [];
+  const error = null;
 
   return (
     <div className="flex min-h-dvh flex-col">
