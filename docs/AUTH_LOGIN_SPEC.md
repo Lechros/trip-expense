@@ -214,7 +214,7 @@
 - [x] **여행 비밀번호 단계(첫 화면)**: 비로그인 시 "비밀번호 입력" + "로그인" 옵션 표시, 로그인된 경우 로그인 옵션 미표시
 - [x] **로그인 완료 후 redirect 파라미터 반영**: /auth/callback에서 `state` 쿼리(백엔드가 OAuth state 전달) 읽어 유효한 path면 해당 URL로, 아니면 /trips로 이동
 - [x] GET /auth/google 호출 시 state에 redirect 넣어 callback에서 복원 (로그인 폼에서 redirect 쿼리 읽어 ?state= 로 전달)
-- [ ] 비회원(게스트) 트립 접속: `GUEST_ACCESS_SOLUTION.md` 별도 구현
+- [x] 비회원(게스트) 트립 접속: `GUEST_ACCESS_SOLUTION.md` 적용 완료(guest_session, requireAuthOrGuest, 프론트 guest 상태·기본 결제자)
 
 ---
 

@@ -102,3 +102,10 @@ URL 구조는 그대로 `/trips`, `/trips/:tripId` 사용.
 4. (선택) 게스트 로그아웃 시 guest_session 제거, 프론트 “현재 멤버”로 기본 결제자 반영.
 
 이 순서로 적용하면 비회원도 로그인 페이지로 넘어가지 않고 해당 여행에 접속할 수 있음.
+
+---
+
+## 6. 구현 완료 사항 (동기화됨)
+
+- **백엔드**: `guest_session` 쿠키 발급(POST /trips/join 게스트 성공 시), `signGuestSessionToken`/`verifyGuestSessionToken`, `requireAuthOrGuest`, GET /me 게스트 분기, `getTripMemberByGuestId`·`requireTripMember` 게스트 지원, GET /trips·GET /trips/:id·entries 라우트 `requireAuthOrGuest`, POST /auth/logout 시 `guest_session` 삭제, 지출 생성 시 `recordedByGuestId` 반영.
+- **프론트**: auth store `guest: GuestSession | null` 및 checkAuth 시 `user`/`guest` 분기, 로그아웃 시 guest 초기화, tab-expenses 기본 결제자 `guestForTrip?.memberId` 반영.

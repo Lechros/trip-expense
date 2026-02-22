@@ -2,11 +2,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/db.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/auth.js';
-import { requireAuth } from '../lib/auth-middleware.js';
+import { requireAuth, requireAuthOrGuest } from '../lib/auth-middleware.js';
 import { getGoogleAuthUrl, exchangeCodeForUser } from '../lib/google-oauth.js';
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
+  GUEST_SESSION_COOKIE,
   accessTokenCookieOptions,
   refreshTokenCookieOptions,
   clearCookieOptions,
@@ -116,27 +117,42 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({ expiresIn: 900 });
   });
 
-  // POST /auth/logout — 쿠키 삭제
+  // POST /auth/logout — 쿠키 삭제 (회원 + 게스트 세션)
   app.post('/auth/logout', async (_req: FastifyRequest, reply: FastifyReply) => {
     reply.clearCookie(ACCESS_TOKEN_COOKIE, clearCookieOptions());
     reply.clearCookie(REFRESH_TOKEN_COOKIE, clearCookieOptions());
+    reply.clearCookie(GUEST_SESSION_COOKIE, clearCookieOptions());
     return reply.send({ ok: true });
   });
 
-  // GET /me — 인증 필요
-  app.get('/me', { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
-    const userId = req.userId!;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, createdAt: true },
-    });
-    if (!user) {
-      return reply.status(401).send({ error: '사용자를 찾을 수 없습니다' });
+  // GET /me — 회원(JWT) 또는 게스트(guest_session) 인증
+  app.get('/me', { preHandler: requireAuthOrGuest }, async (req: FastifyRequest, reply: FastifyReply) => {
+    if (req.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: req.userId },
+        select: { id: true, email: true, createdAt: true },
+      });
+      if (!user) {
+        return reply.status(401).send({ error: '사용자를 찾을 수 없습니다' });
+      }
+      return reply.send({ user });
     }
-    return reply.send({ user });
+    if (req.guestId && req.tripId && req.tripMemberId) {
+      const member = await prisma.tripMember.findUnique({
+        where: { id: req.tripMemberId },
+        select: { id: true, tripId: true, guestId: true },
+      });
+      if (!member || member.guestId !== req.guestId || member.tripId !== req.tripId) {
+        return reply.status(401).send({ error: '게스트 세션이 유효하지 않습니다' });
+      }
+      return reply.send({
+        guest: { guestId: req.guestId, tripId: req.tripId, memberId: req.tripMemberId },
+      });
+    }
+    return reply.status(401).send({ error: '인증이 필요합니다' });
   });
 
-  // PATCH /me — 인증 필요 (추후 프로필 수정용)
+  // PATCH /me — 회원만 (추후 프로필 수정용)
   app.patch('/me', { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = req.userId!;
     const user = await prisma.user.findUnique({

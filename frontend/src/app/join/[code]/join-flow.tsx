@@ -248,6 +248,9 @@ export function JoinFlow({ tripId }: JoinFlowProps) {
     router.refresh();
   };
 
+  /** 게스트 조인은 반드시 같은 오리진(/api)으로 요청해 Set-Cookie(guest_session)가 프론트 도메인에 저장되도록 함 */
+  const guestJoinUrl = "/api/trips/join";
+
   const handleJoinAsGuestExisting = async () => {
     if (!selectedGuestId || !guestPassword) {
       setError("비밀번호를 입력하세요.");
@@ -255,9 +258,9 @@ export function JoinFlow({ tripId }: JoinFlowProps) {
     }
     setError(null);
     setLoading(true);
-    const base = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
-    const res = await fetch(`${base.replace(/\/$/, "")}/trips/join`, {
+    const res = await fetch(guestJoinUrl, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tripId,
@@ -292,9 +295,9 @@ export function JoinFlow({ tripId }: JoinFlowProps) {
     }
     setError(null);
     setLoading(true);
-    const base = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
-    const res = await fetch(`${base.replace(/\/$/, "")}/trips/join`, {
+    const res = await fetch(guestJoinUrl, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tripId,

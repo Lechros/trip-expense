@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/db.js';
-import { requireAuth } from '../lib/auth-middleware.js';
+import { requireAuthOrGuest } from '../lib/auth-middleware.js';
 import { requireTripMember } from '../lib/trip-member.js';
 
 const entriesQuery = z.object({
@@ -105,7 +105,7 @@ export async function entryRoutes(app: FastifyInstance) {
   // GET /trips/:tripId/entries
   app.get(
     '/entries',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (req: FastifyRequest<{ Params: { tripId: string } }>, reply: FastifyReply) => {
       const { tripId } = req.params;
       const parsed = entriesQuery.safeParse(req.query);
@@ -186,11 +186,13 @@ export async function entryRoutes(app: FastifyInstance) {
   // POST /trips/:tripId/entries
   app.post(
     '/entries',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (req: FastifyRequest<{ Params: { tripId: string } }>, reply: FastifyReply) => {
-      const userId = (req as FastifyRequest & { userId?: string }).userId;
-      if (!userId) return reply.status(401).send({ error: '인증이 필요합니다' });
       const { tripId } = req.params;
+      const isGuest = (req as FastifyRequest & { isGuest?: boolean }).isGuest;
+      const userId = (req as FastifyRequest & { userId?: string }).userId;
+      const guestId = (req as FastifyRequest & { guestId?: string }).guestId;
+      if (!userId && !guestId) return reply.status(401).send({ error: '인증이 필요합니다' });
       const parsed = createEntryBody.safeParse(req.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error.flatten() });
@@ -233,8 +235,8 @@ export async function entryRoutes(app: FastifyInstance) {
           memo: body.memo ?? null,
           paidByUserId: paidByUserId || null,
           paidByGuestId: paidByGuestId || null,
-          recordedByUserId: userId,
-          recordedByGuestId: null,
+          recordedByUserId: isGuest ? null : userId ?? null,
+          recordedByGuestId: isGuest && guestId ? guestId : null,
           beneficiaries: {
             create: beneficiaryPairs,
           },
@@ -264,7 +266,7 @@ export async function entryRoutes(app: FastifyInstance) {
   // GET /trips/:tripId/entries/:id
   app.get(
     '/entries/:id',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (
       req: FastifyRequest<{ Params: { tripId: string; id: string } }>,
       reply: FastifyReply
@@ -295,7 +297,7 @@ export async function entryRoutes(app: FastifyInstance) {
   // PATCH /trips/:tripId/entries/:id
   app.patch(
     '/entries/:id',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (
       req: FastifyRequest<{ Params: { tripId: string; id: string } }>,
       reply: FastifyReply
@@ -378,7 +380,7 @@ export async function entryRoutes(app: FastifyInstance) {
   // DELETE /trips/:tripId/entries/:id (soft delete)
   app.delete(
     '/entries/:id',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (
       req: FastifyRequest<{ Params: { tripId: string; id: string } }>,
       reply: FastifyReply

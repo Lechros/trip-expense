@@ -1,9 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/db.js';
-import { requireAuth } from '../lib/auth-middleware.js';
+import { requireAuth, requireAuthOrGuest } from '../lib/auth-middleware.js';
 import { requireTripMember, requireTripOwner } from '../lib/trip-member.js';
-import { hashPassword, verifyPassword } from '../lib/auth.js';
+import { hashPassword, verifyPassword, signGuestSessionToken } from '../lib/auth.js';
+import {
+  GUEST_SESSION_COOKIE,
+  guestSessionCookieOptions,
+} from '../lib/cookie-options.js';
 
 const createTripBody = z
   .object({
@@ -133,10 +137,7 @@ export async function tripRoutes(app: FastifyInstance) {
       const okGuest = await verifyPassword(guestPassword, guest.passwordHash);
       if (!okGuest) return reply.status(401).send({ error: '게스트 비밀번호가 올바르지 않습니다' });
       const existing = await prisma.tripMember.findUnique({ where: { guestId } });
-      if (existing) {
-        return reply.send({ joined: true, memberId: existing.id, tripId, guestId });
-      }
-      const member = await prisma.tripMember.create({
+      const member = existing ?? await prisma.tripMember.create({
         data: {
           tripId,
           guestId,
@@ -145,7 +146,15 @@ export async function tripRoutes(app: FastifyInstance) {
           role: 'member',
         },
       });
-      return reply.status(201).send({ joined: true, memberId: member.id, tripId, guestId });
+      const guestToken = signGuestSessionToken({
+        tripId,
+        guestId,
+        memberId: member.id,
+      });
+      reply.setCookie(GUEST_SESSION_COOKIE, guestToken, guestSessionCookieOptions());
+      return existing
+        ? reply.send({ joined: true, memberId: member.id, tripId, guestId })
+        : reply.status(201).send({ joined: true, memberId: member.id, tripId, guestId });
     }
 
     if (hasDisplayName) {
@@ -167,6 +176,12 @@ export async function tripRoutes(app: FastifyInstance) {
       const member = await prisma.tripMember.create({
         data: { tripId, guestId: guest.id, displayName, colorHex: guest.colorHex ?? undefined, role: 'member' },
       });
+      const guestToken = signGuestSessionToken({
+        tripId,
+        guestId: guest.id,
+        memberId: member.id,
+      });
+      reply.setCookie(GUEST_SESSION_COOKIE, guestToken, guestSessionCookieOptions());
       return reply.status(201).send({ joined: true, memberId: member.id, tripId, guestId: guest.id });
     }
 
@@ -198,7 +213,32 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.status(201).send({ joined: true, memberId: member.id, tripId });
   });
 
-  app.get('/trips', { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
+  app.get('/trips', { preHandler: requireAuthOrGuest }, async (req: FastifyRequest, reply: FastifyReply) => {
+    if (req.isGuest && req.tripId) {
+      const membership = await prisma.tripMember.findUnique({
+        where: { id: req.tripMemberId! },
+        include: {
+          trip: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              startDate: true,
+              endDate: true,
+              countryCode: true,
+              baseCurrency: true,
+              additionalCurrency: true,
+              isPublic: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+      if (!membership?.trip) {
+        return reply.status(403).send({ error: '이 여행에 대한 접근 권한이 없습니다' });
+      }
+      return reply.send({ trips: [{ ...membership.trip, role: membership.role, memberId: membership.id }] });
+    }
     const userId = req.userId!;
     const memberships = await prisma.tripMember.findMany({
       where: { userId },
@@ -277,7 +317,7 @@ export async function tripRoutes(app: FastifyInstance) {
 
   app.get(
     '/trips/:id',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const trip = await prisma.trip.findUnique({
         where: { id: req.params.id },
@@ -356,7 +396,7 @@ export async function tripRoutes(app: FastifyInstance) {
   // Members
   app.get(
     '/trips/:tripId/members',
-    { preHandler: [requireAuth, requireTripMember] },
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
     async (req: FastifyRequest<{ Params: { tripId: string } }>, reply: FastifyReply) => {
       const members = await prisma.tripMember.findMany({
         where: { tripId: req.params.tripId },

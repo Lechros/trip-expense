@@ -22,6 +22,24 @@ export async function getTripMemberByUserId(
   };
 }
 
+/**
+ * tripId + guestId로 TripMember 조회. 게스트 경로용.
+ */
+export async function getTripMemberByGuestId(
+  tripId: string,
+  guestId: string
+): Promise<{ memberId: string; role: TripMemberRole } | null> {
+  const member = await prisma.tripMember.findFirst({
+    where: { tripId, guestId },
+    select: { id: true, role: true },
+  });
+  if (!member) return null;
+  return {
+    memberId: member.id,
+    role: member.role as TripMemberRole,
+  };
+}
+
 export async function isTripOwner(tripId: string, userId: string): Promise<boolean> {
   const m = await getTripMemberByUserId(tripId, userId);
   return m?.role === 'owner';
@@ -33,8 +51,9 @@ function getTripIdFromParams(params: Record<string, string | undefined>): string
 }
 
 /**
- * 해당 trip의 멤버(회원)인지 검증. requireAuth 이후 사용.
+ * 해당 trip의 멤버(회원 또는 게스트)인지 검증. requireAuthOrGuest 이후 사용.
  * request.params에 tripId 또는 id 필요. 미멤버면 403.
+ * 게스트일 때는 요청의 tripId와 request.tripId 일치 시에만 통과.
  */
 export async function requireTripMember(
   request: FastifyRequest<{ Params: Record<string, string> }>,
@@ -43,6 +62,17 @@ export async function requireTripMember(
   const tripId = getTripIdFromParams(request.params as Record<string, string | undefined>);
   if (!tripId) {
     return reply.status(400).send({ error: 'tripId가 필요합니다' });
+  }
+  if (request.guestId && request.isGuest) {
+    if (request.tripId !== tripId) {
+      return reply.status(403).send({ error: '이 여행에 대한 접근 권한이 없습니다' });
+    }
+    const member = await getTripMemberByGuestId(tripId, request.guestId);
+    if (!member) {
+      return reply.status(403).send({ error: '이 여행에 대한 접근 권한이 없습니다' });
+    }
+    request.tripMember = member;
+    return;
   }
   const userId = request.userId;
   if (!userId) {

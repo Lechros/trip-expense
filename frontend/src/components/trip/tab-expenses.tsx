@@ -218,10 +218,12 @@ export function TabExpenses({ tripId }: TabExpensesProps) {
   }, []);
 
   const listEntries = entries.map(apiEntryToListEntry);
-  // 기본 결제자: 로그인된 멤버(회원=Google userId 매칭). 비회원(게스트)은 현재 세션/현재 멤버 식별이 없어 fallback(members[0]) 사용. see docs/GUEST_MEMBER_PARITY.md
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const guestForTrip = useAuthStore((s) => (s.guest?.tripId === tripId ? s.guest : null));
   const defaultPaidByMemberId =
-    members.find((m) => m.userId === currentUserId)?.id ?? members[0]?.id;
+    guestForTrip?.memberId ??
+    members.find((m) => m.userId === currentUserId)?.id ??
+    members[0]?.id;
   const showEmptyState =
     !isLoading && error == null && entries.length === 0 && !showDeleted;
 

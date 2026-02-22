@@ -52,3 +52,25 @@ export function verifyRefreshToken(token: string): RefreshPayload | null {
     return null;
   }
 }
+
+const GUEST_SESSION_SECRET = process.env.GUEST_SESSION_SECRET ?? process.env.JWT_SECRET ?? 'dev-guest-session';
+const GUEST_SESSION_EXPIRES_IN = '7d';
+
+export type GuestSessionPayload = { tripId: string; guestId: string; memberId: string; exp?: number };
+
+export function signGuestSessionToken(payload: GuestSessionPayload): string {
+  return jwt.sign(
+    { ...payload, type: 'guest_session' },
+    GUEST_SESSION_SECRET,
+    { expiresIn: GUEST_SESSION_EXPIRES_IN }
+  );
+}
+
+export function verifyGuestSessionToken(token: string): GuestSessionPayload | null {
+  try {
+    const payload = jwt.verify(token, GUEST_SESSION_SECRET) as GuestSessionPayload & { type?: string };
+    return payload?.tripId && payload?.guestId && payload?.memberId ? payload : null;
+  } catch {
+    return null;
+  }
+}

@@ -3,6 +3,7 @@
  */
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
 export const REFRESH_TOKEN_COOKIE = 'refreshToken';
+export const GUEST_SESSION_COOKIE = 'guest_session';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -18,6 +19,11 @@ export function accessTokenCookieOptions(maxAgeSeconds: number = 15 * 60) {
 }
 
 export function refreshTokenCookieOptions(maxAgeSeconds: number = 7 * 24 * 3600) {
+  return { ...baseOptions, maxAge: maxAgeSeconds };
+}
+
+const GUEST_SESSION_MAX_AGE = 7 * 24 * 3600; // 7일
+export function guestSessionCookieOptions(maxAgeSeconds: number = GUEST_SESSION_MAX_AGE) {
   return { ...baseOptions, maxAge: maxAgeSeconds };
 }
 
