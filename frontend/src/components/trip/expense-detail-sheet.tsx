@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { formatPaidAtLocalWithAmPm } from "./expense-utils";
 import { X, Check } from "lucide-react";
 
 const CURRENCY_SYMBOL: Record<string, string> = {
@@ -144,8 +145,13 @@ export function ExpenseDetailSheet({
                 <Label className="text-muted-foreground text-sm">
                   결제 일시
                 </Label>
-                <p className="text-foreground min-h-10 py-2">
-                  {entry.paidAt}
+                <p className="text-foreground min-h-10 py-2 whitespace-pre-line">
+                  {entry.paidAt
+                    ? (() => {
+                        const { dateLine, timeLine } = formatPaidAtLocalWithAmPm(entry.paidAt);
+                        return `${dateLine}\n${timeLine}`;
+                      })()
+                    : ""}
                 </p>
               </div>
             </div>

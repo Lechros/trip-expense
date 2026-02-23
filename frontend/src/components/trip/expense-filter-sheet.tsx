@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +20,16 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer";
 
-/** 프로토타입용. 연동 시 트립 멤버·통화로 교체 */
-const MOCK_MEMBERS = ["김철수", "이영희", "박민수"];
+export type ExpenseFilter = {
+  paidByMemberId?: string;
+  beneficiaryMemberId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  currency?: string;
+};
+
+type ExpenseMember = { id: string; displayName: string };
+
 const CURRENCIES = [
   { value: "", label: "전체" },
   { value: "KRW", label: "KRW (원)" },
@@ -30,13 +39,56 @@ const CURRENCIES = [
 type ExpenseFilterSheetProps = {
   open: boolean;
   onClose: () => void;
+  members: ExpenseMember[];
+  filter: ExpenseFilter;
+  onApply: (filter: ExpenseFilter) => void;
 };
 
 /**
- * 지출 필터 시트 — 레이아웃만.
- * 결제자/수혜자/날짜/통화 영역 + 초기화·적용 버튼. 필터 로직·연동 없음.
+ * 지출 필터 시트. 결제자/수혜자/날짜/통화 선택 후 적용 시 onApply 호출.
  */
-export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
+export function ExpenseFilterSheet({
+  open,
+  onClose,
+  members,
+  filter,
+  onApply,
+}: ExpenseFilterSheetProps) {
+  const [paidBy, setPaidBy] = useState(filter.paidByMemberId ?? "");
+  const [beneficiary, setBeneficiary] = useState(filter.beneficiaryMemberId ?? "");
+  const [dateFrom, setDateFrom] = useState(filter.dateFrom ?? "");
+  const [dateTo, setDateTo] = useState(filter.dateTo ?? "");
+  const [currency, setCurrency] = useState(filter.currency ?? "");
+
+  useEffect(() => {
+    if (open) {
+      setPaidBy(filter.paidByMemberId ?? "");
+      setBeneficiary(filter.beneficiaryMemberId ?? "");
+      setDateFrom(filter.dateFrom ?? "");
+      setDateTo(filter.dateTo ?? "");
+      setCurrency(filter.currency ?? "");
+    }
+  }, [open, filter]);
+
+  const handleReset = () => {
+    setPaidBy("");
+    setBeneficiary("");
+    setDateFrom("");
+    setDateTo("");
+    setCurrency("");
+  };
+
+  const handleApply = () => {
+    onApply({
+      paidByMemberId: paidBy || undefined,
+      beneficiaryMemberId: beneficiary || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      currency: currency || undefined,
+    });
+    onClose();
+  };
+
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
       <DrawerContent className="overflow-hidden flex flex-col">
@@ -50,14 +102,15 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
               <FieldLabel asChild>
                 <Label>결제자</Label>
               </FieldLabel>
-              <Select disabled>
+              <Select value={paidBy || "all"} onValueChange={(v) => setPaidBy(v === "all" ? "" : v)}>
                 <SelectTrigger className="w-full min-h-10">
                   <SelectValue placeholder="결제자 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {MOCK_MEMBERS.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
+                  <SelectItem value="all">전체</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.displayName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -68,14 +121,15 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
               <FieldLabel asChild>
                 <Label>수혜자</Label>
               </FieldLabel>
-              <Select disabled>
+              <Select value={beneficiary || "all"} onValueChange={(v) => setBeneficiary(v === "all" ? "" : v)}>
                 <SelectTrigger className="w-full min-h-10">
                   <SelectValue placeholder="수혜자 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {MOCK_MEMBERS.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
+                  <SelectItem value="all">전체</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.displayName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -91,14 +145,16 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
                   type="date"
                   placeholder="시작일"
                   className="min-h-10"
-                  disabled
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
                   aria-label="시작일"
                 />
                 <Input
                   type="date"
                   placeholder="종료일"
                   className="min-h-10"
-                  disabled
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
                   aria-label="종료일"
                 />
               </div>
@@ -108,7 +164,7 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
               <FieldLabel asChild>
                 <Label>통화</Label>
               </FieldLabel>
-              <Select disabled>
+              <Select value={currency || "all"} onValueChange={(v) => setCurrency(v === "all" ? "" : v)}>
                 <SelectTrigger className="w-full min-h-10">
                   <SelectValue placeholder="통화 선택" />
                 </SelectTrigger>
@@ -130,7 +186,7 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
             variant="outline"
             size="lg"
             className="flex-1 min-h-12 touch-manipulation"
-            onClick={onClose}
+            onClick={handleReset}
           >
             초기화
           </Button>
@@ -138,7 +194,7 @@ export function ExpenseFilterSheet({ open, onClose }: ExpenseFilterSheetProps) {
             type="button"
             size="lg"
             className="flex-1 min-h-12 touch-manipulation"
-            onClick={onClose}
+            onClick={handleApply}
           >
             적용
           </Button>

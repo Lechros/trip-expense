@@ -2,151 +2,188 @@
 
 /**
  * 정산 탭. SPEC §6.
- * 순서: 경고(외화 결제 > 환전 시) → 내 이체 목록 → 내 정산 결과 → 멤버별 정산 → 전체 이체 목록.
- * 현재는 목업 데이터로 UI만 구성.
+ * GET /trips/:tripId/settlement 로 계산 결과 조회.
+ * 순서: 환전 부족 경고 → 내 정산 결과 → 내 이체 목록 → 멤버별 정산 → 전체 이체 목록.
  */
 
-/** 목업: 로그인 사용자 */
-const MOCK_CURRENT_USER = "김철수";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
-/** 목업: 누군가의 총 외화 결제액이 총 환전액보다 많을 때 true */
-const MOCK_SHOW_EXCHANGE_WARNING = true;
-
-/** 목업: 내가 받을 이체 (누구에게서 얼마) */
-type MockReceive = { from: string; amountKrw: number };
-
-/** 목업: 내가 줄 이체 (누구에게 얼마) */
-type MockSend = { to: string; amountKrw: number };
-
-const MOCK_MY_RECEIVE: MockReceive[] = [{ from: "이영희", amountKrw: 50000 }];
-const MOCK_MY_SEND: MockSend[] = [];
-
-/** 목업: 내 정산 결과. *TotalKrw = 원화 환산 합계, 나머지 = 통화별 내역 */
-type MockMySettlement = {
-  usedTotalKrw: number;
-  usedKrw: number;
-  usedJpy: number;
-  paidTotalKrw: number;
-  paidKrw: number;
-  paidJpy: number;
+type SettlementResponse = {
+  settlementError?: boolean;
+  settlementErrorMessage?: string[];
+  exchangeWarning: boolean;
+  excludedMessages: string[];
+  memberSummaries: {
+    memberId: string;
+    displayName: string;
+    paidKrw: number;
+    usedKrw: number;
+    diffKrw: number;
+  }[];
+  transfers: {
+    fromMemberId: string;
+    toMemberId: string;
+    fromName: string;
+    toName: string;
+    amountKrw: number;
+  }[];
+  myReceive: { from: string; amountKrw: number }[];
+  mySend: { to: string; amountKrw: number }[];
+  mySummary: {
+    memberId: string;
+    displayName: string;
+    paidKrw: number;
+    usedKrw: number;
+    diffKrw: number;
+  } | null;
 };
 
-const MOCK_MY_SETTLEMENT: MockMySettlement = {
-  usedTotalKrw: 127000,
-  usedKrw: 80000,
-  usedJpy: 5000,
-  paidTotalKrw: 150000,
-  paidKrw: 20000,
-  paidJpy: 2000,
-};
-
-/** 목업: 멤버별 결제·사용·차이 (원화만) */
-type MockMemberSummary = {
-  name: string;
-  paidKrw: number;
-  usedKrw: number;
-  diffKrw: number;
-};
-
-const MOCK_MEMBERS: MockMemberSummary[] = [
-  { name: "김철수", paidKrw: 150000, usedKrw: 100000, diffKrw: 50000 },
-  { name: "이영희", paidKrw: 50000, usedKrw: 100000, diffKrw: -50000 },
-  { name: "박민수", paidKrw: 100000, usedKrw: 100000, diffKrw: 0 },
-];
-
-/** 목업: 전체 이체 한 건 */
-type MockTransfer = {
-  from: string;
-  to: string;
-  amountKrw: number;
-};
-
-const MOCK_TRANSFERS: MockTransfer[] = [
-  { from: "이영희", to: "김철수", amountKrw: 50000 },
-];
+type TabSettlementProps = { tripId: string };
 
 function formatKrw(amount: number): string {
   return `${amount.toLocaleString("ko-KR")}원`;
 }
 
-function formatJpy(amount: number): string {
-  return `${amount.toLocaleString("ko-KR")} JPY`;
-}
+export function TabSettlement({ tripId }: TabSettlementProps) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["trips", tripId, "settlement"],
+    queryFn: async () => {
+      const res = await apiFetch<SettlementResponse>(`/trips/${tripId}/settlement`);
+      if (!res.ok) throw new Error(res.error ?? "정산 정보를 불러오지 못했습니다");
+      return res.data;
+    },
+  });
 
-export function TabSettlement() {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <p className="text-sm text-muted-foreground">정산 계산 중…</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <p className="text-sm text-destructive" role="alert">
+          {error instanceof Error ? error.message : "정산 정보를 불러오지 못했습니다"}
+        </p>
+      </div>
+    );
+  }
+
+  const {
+    settlementError,
+    settlementErrorMessage = [],
+    exchangeWarning,
+    excludedMessages,
+    memberSummaries,
+    transfers,
+    myReceive,
+    mySend,
+    mySummary,
+  } = data;
+
+  if (settlementError && settlementErrorMessage.length > 0) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <section aria-label="정산 불가 안내">
+          <div className="rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3">
+            <p className="text-sm font-medium text-foreground mb-1">
+              정산을 계산할 수 없습니다
+            </p>
+            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
+              {settlementErrorMessage.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground mt-2">
+              환전 탭에서 해당 통화의 환전 기록을 추가한 뒤 다시 확인해 주세요.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 pb-8">
-      {/* 1. 맨 위: 외화 결제 > 환전 시 경고 */}
-      {MOCK_SHOW_EXCHANGE_WARNING && (
-        <section aria-label="환전 부족 안내">
+      {/* 1. 환전 부족 / 제외 항목 경고 (정산은 되었으나 일부 제외된 경우) */}
+      {exchangeWarning && excludedMessages.length > 0 && (
+        <section aria-label="환전·정산 안내">
           <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
-            <p className="text-sm text-foreground">
-              일부 멤버의 외화 결제액이 환전한 금액보다 많습니다. 환전 탭에서 추가 환전을 등록해 주세요.
+            <p className="text-sm font-medium text-foreground mb-1">
+              일부 결제가 정산에서 제외되었습니다
+            </p>
+            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
+              {excludedMessages.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground mt-2">
+              환전 탭에서 해당 통화의 환전 기록을 추가해 주세요.
             </p>
           </div>
         </section>
       )}
 
-      {/* 2. 로그인 사용자의 정산 결과: 컬럼(왼쪽 라벨, 오른쪽 금액·세부 내역) */}
-      <section aria-label={`${MOCK_CURRENT_USER}님의 정산 결과`}>
+      {/* 2. 내 정산 결과 */}
+      <section aria-label="내 정산 결과">
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           내 정산 결과
         </h2>
         <div className="rounded-xl border border-border bg-card px-4 pt-3 pb-4">
-          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 items-baseline">
-            <p className="text-sm text-muted-foreground mt-1">사용 금액</p>
-            <div className="text-right min-w-0">
-              <p className="text-2xl font-bold tabular-nums text-foreground">
-                {formatKrw(MOCK_MY_SETTLEMENT.usedTotalKrw)}
-              </p>
-              {(MOCK_MY_SETTLEMENT.usedKrw > 0 || MOCK_MY_SETTLEMENT.usedJpy > 0) && (
-                <p className="text-sm tabular-nums text-muted-foreground mt-0.5">
-                  {[
-                    MOCK_MY_SETTLEMENT.usedKrw > 0 && formatKrw(MOCK_MY_SETTLEMENT.usedKrw),
-                    MOCK_MY_SETTLEMENT.usedJpy > 0 && `${MOCK_MY_SETTLEMENT.usedJpy.toLocaleString("ko-KR")}엔`,
-                  ]
-                    .filter(Boolean)
-                    .join(" + ")}
+          {mySummary ? (
+            <>
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 items-baseline">
+                <p className="text-sm text-muted-foreground mt-1">사용 금액</p>
+                <p className="text-right text-2xl font-bold tabular-nums text-foreground">
+                  {formatKrw(mySummary.usedKrw)}
                 </p>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-border pt-3 mt-3 items-baseline">
-            <p className="text-sm text-muted-foreground">결제 금액</p>
-            <div className="text-right min-w-0">
-              <p className="text-lg font-semibold tabular-nums text-foreground">
-                {formatKrw(MOCK_MY_SETTLEMENT.paidTotalKrw)}
-              </p>
-              {(MOCK_MY_SETTLEMENT.paidKrw > 0 || MOCK_MY_SETTLEMENT.paidJpy > 0) && (
-                <p className="text-sm tabular-nums text-muted-foreground mt-0.5">
-                  {[
-                    MOCK_MY_SETTLEMENT.paidKrw > 0 && formatKrw(MOCK_MY_SETTLEMENT.paidKrw),
-                    MOCK_MY_SETTLEMENT.paidJpy > 0 && `${MOCK_MY_SETTLEMENT.paidJpy.toLocaleString("ko-KR")}엔`,
-                  ]
-                    .filter(Boolean)
-                    .join(" + ")}
+              </div>
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-border pt-3 mt-3 items-baseline">
+                <p className="text-sm text-muted-foreground">결제 금액</p>
+                <p className="text-right text-lg font-semibold tabular-nums text-foreground">
+                  {formatKrw(mySummary.paidKrw)}
                 </p>
-              )}
-            </div>
-          </div>
+              </div>
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-border pt-3 mt-3 items-baseline">
+                <p className="text-sm text-muted-foreground">차이</p>
+                <p className="text-right text-lg font-semibold tabular-nums">
+                  {mySummary.diffKrw >= 0 ? (
+                    <span className="text-green-600 dark:text-green-500">
+                      {formatKrw(mySummary.diffKrw)} 받기
+                    </span>
+                  ) : (
+                    <span className="text-destructive">
+                      {formatKrw(-mySummary.diffKrw)} 주기
+                    </span>
+                  )}
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground py-2">정산 결과가 없습니다.</p>
+          )}
         </div>
       </section>
 
-      {/* 3. 로그인 사용자의 이체 목록: 누구에게서 얼마 받고, 누구에게 얼마 줘야 하는지 */}
-      <section aria-label={`${MOCK_CURRENT_USER}님의 이체 목록`}>
+      {/* 3. 내 이체 목록 */}
+      <section aria-label="내 이체 목록">
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           내 이체 목록
         </h2>
         <div className="flex flex-col gap-2">
-          {MOCK_MY_RECEIVE.length === 0 && MOCK_MY_SEND.length === 0 ? (
+          {myReceive.length === 0 && mySend.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-muted/30 py-6 text-center text-sm text-muted-foreground">
               받을·줄 이체가 없습니다.
             </div>
           ) : (
             <>
-              {MOCK_MY_RECEIVE.map((r) => (
+              {myReceive.map((r, i) => (
                 <div
-                  key={r.from}
+                  key={`rec-${i}-${r.from}-${r.amountKrw}`}
                   className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-2"
                 >
                   <span className="text-foreground">
@@ -158,9 +195,9 @@ export function TabSettlement() {
                   </span>
                 </div>
               ))}
-              {MOCK_MY_SEND.map((s) => (
+              {mySend.map((s, i) => (
                 <div
-                  key={s.to}
+                  key={`send-${i}-${s.to}-${s.amountKrw}`}
                   className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between gap-2"
                 >
                   <span className="text-foreground">
@@ -177,21 +214,20 @@ export function TabSettlement() {
         </div>
       </section>
 
-      {/* 구분: 내 → 전체 */}
       <div className="border-t border-border pt-6 mt-2" aria-hidden />
 
-      {/* 4. 멤버별 정산: 이름 | 사용(금액) / 결제(금액) 두 줄, 차액 없음 */}
+      {/* 4. 멤버별 정산 */}
       <section aria-label="멤버별 정산">
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           멤버별 정산
         </h2>
         <ul className="flex flex-col gap-2" role="list">
-          {MOCK_MEMBERS.map((m) => (
+          {memberSummaries.map((m) => (
             <li
-              key={m.name}
+              key={m.memberId}
               className="rounded-xl border border-border bg-card px-4 py-3 grid grid-cols-[auto_1fr] gap-x-4 items-start"
             >
-              <span className="font-medium text-foreground text-sm leading-6">{m.name}</span>
+              <span className="font-medium text-foreground text-sm leading-6">{m.displayName}</span>
               <div className="text-right text-sm min-w-0">
                 <p className="leading-6">
                   <span className="text-muted-foreground">사용 </span>
@@ -201,6 +237,19 @@ export function TabSettlement() {
                   <span className="text-muted-foreground">결제 </span>
                   <span className="tabular-nums text-foreground">{formatKrw(m.paidKrw)}</span>
                 </p>
+                {Math.abs(m.diffKrw) >= 0.01 && (
+                  <p className="leading-6 mt-px">
+                    {m.diffKrw >= 0 ? (
+                      <span className="tabular-nums text-green-600 dark:text-green-500">
+                        {formatKrw(m.diffKrw)} 받기
+                      </span>
+                    ) : (
+                      <span className="tabular-nums text-destructive">
+                        {formatKrw(-m.diffKrw)} 주기
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
             </li>
           ))}
@@ -212,21 +261,21 @@ export function TabSettlement() {
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           전체 이체 목록
         </h2>
-        {MOCK_TRANSFERS.length === 0 ? (
+        {transfers.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-muted/30 py-8 text-center text-sm text-muted-foreground">
             이체할 내역이 없습니다.
           </div>
         ) : (
           <ul className="flex flex-col gap-2" role="list">
-            {MOCK_TRANSFERS.map((t, i) => (
+            {transfers.map((t, i) => (
               <li
-                key={`${t.from}-${t.to}-${i}`}
+                key={`${t.fromMemberId}-${t.toMemberId}-${i}`}
                 className="rounded-xl border border-border bg-card px-4 py-2.5 flex items-center justify-between gap-2"
               >
                 <span className="text-sm text-foreground">
-                  <span>{t.from}</span>
+                  <span>{t.fromName}</span>
                   <span className="text-muted-foreground"> → </span>
-                  <span>{t.to}</span>
+                  <span>{t.toName}</span>
                 </span>
                 <span className="text-sm tabular-nums text-foreground">
                   {formatKrw(t.amountKrw)}

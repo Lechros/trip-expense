@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -18,75 +19,40 @@ import {
   ExchangeAddSheet,
   type ExchangeFormValue,
 } from "./exchange-add-sheet";
-import { ExchangeDetailSheet } from "./exchange-detail-sheet";
+import { ExchangeDetailSheet, type ExchangeDetailRecord } from "./exchange-detail-sheet";
+import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth";
 
-/** 프로토타입용. 연동 시 로그인 사용자로 교체 */
-const MOCK_CURRENT_USER = "김철수";
+const CURRENCY_LABEL: Record<string, string> = {
+  KRW: "원",
+  JPY: "엔",
+  USD: "달러",
+};
 
-/** 프로토타입용 mock 타입. SPEC §5 */
-type MockExchangeRecord = {
+/** API 응답 타입 (GET /trips/:tripId/exchanges) */
+type ApiExchange = {
   id: string;
-  exchangedBy: string;
+  tripId: string;
+  exchangedBy: { memberId: string; displayName: string };
   sourceCurrency: string;
   targetCurrency: string;
   rate: number;
   sourceAmount: number;
   targetAmount: number;
   exchangedAt: string;
+  recordedAt: string;
 };
 
-/** rate = 1 target = rate 원. 항상 원화 결제 → 외화 수령 */
-const INITIAL_RECORDS: MockExchangeRecord[] = [
-  {
-    id: "1",
-    exchangedBy: "김철수",
-    sourceCurrency: "KRW",
-    targetCurrency: "JPY",
-    rate: 9.4,
-    sourceAmount: 100000,
-    targetAmount: 10638,
-    exchangedAt: "2025-02-20",
-  },
-  {
-    id: "2",
-    exchangedBy: "김철수",
-    sourceCurrency: "KRW",
-    targetCurrency: "JPY",
-    rate: 9.45,
-    sourceAmount: 50000,
-    targetAmount: 5291,
-    exchangedAt: "2025-02-19",
-  },
-  {
-    id: "3",
-    exchangedBy: "이영희",
-    sourceCurrency: "KRW",
-    targetCurrency: "USD",
-    rate: 1350,
-    sourceAmount: 1000000,
-    targetAmount: 740,
-    exchangedAt: "2025-02-18",
-  },
-];
-
-/** 폼에서 결제/수령 금액 모두 전달됨(둘 중 하나 입력 시 다른 쪽 자동 계산된 상태) */
-function formValueToRecord(
-  form: ExchangeFormValue,
-  id: string
-): MockExchangeRecord {
-  const rate = Number(form.rate);
-  const sourceAmount = Number(form.sourceAmount);
-  const targetAmount = Number(form.targetAmount);
-  const exchangedAt = form.exchangedAt.slice(0, 16);
+function apiExchangeToDetail(api: ApiExchange): ExchangeDetailRecord {
   return {
-    id,
-    exchangedBy: form.exchangedBy,
-    sourceCurrency: "KRW",
-    targetCurrency: form.targetCurrency,
-    rate,
-    sourceAmount,
-    targetAmount,
-    exchangedAt,
+    id: api.id,
+    exchangedBy: api.exchangedBy.displayName,
+    sourceCurrency: api.sourceCurrency,
+    targetCurrency: api.targetCurrency,
+    rate: api.rate,
+    sourceAmount: api.sourceAmount,
+    targetAmount: api.targetAmount,
+    exchangedAt: api.exchangedAt,
   };
 }
 
@@ -95,10 +61,10 @@ function amountToFormString(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-function recordToFormValue(record: MockExchangeRecord): ExchangeFormValue {
+function recordToFormValue(record: ExchangeDetailRecord): ExchangeFormValue {
   return {
     exchangedBy: record.exchangedBy,
-    sourceCurrency: "KRW",
+    sourceCurrency: record.sourceCurrency,
     targetCurrency: record.targetCurrency,
     rate: String(record.rate),
     sourceAmount: amountToFormString(record.sourceAmount),
@@ -106,7 +72,7 @@ function recordToFormValue(record: MockExchangeRecord): ExchangeFormValue {
     exchangedAt:
       record.exchangedAt.length >= 16
         ? record.exchangedAt
-        : `${record.exchangedAt}T00:00`,
+        : `${record.exchangedAt.slice(0, 10)}T00:00`,
   };
 }
 
@@ -141,16 +107,20 @@ function getYear(exchangedAt: string): number {
   return new Date(exchangedAt).getFullYear();
 }
 
+type TabExchangeProps = { tripId: string };
+
 /**
  * 환전 탭. SPEC §5: 환전 기록 목록·추가·수정·삭제.
- * 목록은 로그인 사용자(자기 자신)의 환전 기록만 표시.
+ * API가 요청자(자기 자신)의 환전 기록만 반환하므로 그대로 목록 표시.
  */
-export function TabExchange() {
+export function TabExchange({ tripId }: TabExchangeProps) {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const guest = useAuthStore((s) => s.guest);
+
   const [addOpen, setAddOpen] = useState(false);
-  const [records, setRecords] = useState<MockExchangeRecord[]>(INITIAL_RECORDS);
-  const myRecords = records.filter((r) => r.exchangedBy === MOCK_CURRENT_USER);
   const [selectedRecord, setSelectedRecord] =
-    useState<MockExchangeRecord | null>(null);
+    useState<ExchangeDetailRecord | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editInitialValue, setEditInitialValue] =
@@ -159,27 +129,115 @@ export function TabExchange() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [recordToDeleteId, setRecordToDeleteId] = useState<string | null>(null);
 
+  const exchangesQuery = useQuery({
+    queryKey: ["trips", tripId, "exchanges"],
+    queryFn: async () => {
+      const res = await apiFetch<{ exchanges: ApiExchange[] }>(
+        `/trips/${tripId}/exchanges`
+      );
+      if (!res.ok) throw new Error(res.error ?? "Failed to load exchanges");
+      return res.data;
+    },
+  });
+
+  const tripQuery = useQuery({
+    queryKey: ["trips", tripId],
+    queryFn: async () => {
+      const res = await apiFetch<{
+        trip?: { baseCurrency: string; additionalCurrency?: string | null };
+      }>(`/trips/${tripId}`);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load trip");
+      return res.data;
+    },
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["trips", tripId, "members"],
+    queryFn: async () => {
+      const res = await apiFetch<{ members: { id: string; displayName: string; userId?: string | null }[] }>(
+        `/trips/${tripId}/members`
+      );
+      if (!res.ok) throw new Error(res.error ?? "Failed to load members");
+      return res.data;
+    },
+  });
+
+  const baseCurrency = tripQuery.data?.trip?.baseCurrency ?? "KRW";
+  const additionalCurrency = tripQuery.data?.trip?.additionalCurrency ?? null;
+  const targetCurrencyOptions =
+    additionalCurrency ?
+      [{ value: additionalCurrency, label: `${additionalCurrency} (${CURRENCY_LABEL[additionalCurrency] ?? additionalCurrency})` }]
+    : [];
+
+  const members = membersQuery.data?.members ?? [];
+  const currentMemberDisplayName =
+    user
+      ? members.find((m) => m.userId === user.id)?.displayName
+      : guest
+        ? members.find((m) => m.id === guest.memberId)?.displayName
+        : null;
+  const defaultExchangedBy = currentMemberDisplayName ?? "나";
+
+  const myRecords: ExchangeDetailRecord[] = (exchangesQuery.data?.exchanges ?? []).map(
+    apiExchangeToDetail
+  );
+
+  const invalidateExchanges = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["trips", tripId, "exchanges"] });
+  }, [queryClient, tripId]);
+
   const handleAddSubmit = useCallback(
-    (form: ExchangeFormValue, editId?: string) => {
-      if (editId) {
-        const updated = formValueToRecord(form, editId);
-        setRecords((prev) =>
-          prev.map((r) => (r.id === editId ? updated : r))
+    async (form: ExchangeFormValue, editIdArg?: string) => {
+      const exchangedAt =
+        form.exchangedAt.length >= 16
+          ? form.exchangedAt
+          : `${form.exchangedAt.slice(0, 10)}T00:00:00.000Z`;
+      const rate = Number(form.rate);
+      const sourceAmount = Number(form.sourceAmount);
+
+      if (editIdArg) {
+        const res = await apiFetch<{ exchange: ApiExchange }>(
+          `/trips/${tripId}/exchanges/${editIdArg}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              rate,
+              sourceAmount,
+              exchangedAt,
+            }),
+          }
         );
+        if (!res.ok) throw new Error(res.error ?? "Failed to update");
+        invalidateExchanges();
+        const updated = apiExchangeToDetail(res.data!.exchange);
         setEditOpen(false);
         setEditId(null);
         setEditInitialValue(null);
         setSelectedRecord(updated);
         setDetailOpen(true);
       } else {
-        const newRecord = formValueToRecord(form, `new-${Date.now()}`);
-        setRecords((prev) => [newRecord, ...prev]);
+        const res = await apiFetch<{ exchange: ApiExchange }>(
+          `/trips/${tripId}/exchanges`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              sourceCurrency: form.sourceCurrency,
+              targetCurrency: form.targetCurrency,
+              rate,
+              sourceAmount,
+              exchangedAt,
+            }),
+          }
+        );
+        if (!res.ok) throw new Error(res.error ?? "Failed to create");
+        invalidateExchanges();
+        setAddOpen(false);
       }
     },
-    []
+    [tripId, invalidateExchanges]
   );
 
-  const openDetail = useCallback((record: MockExchangeRecord) => {
+  const openDetail = useCallback((record: ExchangeDetailRecord) => {
     setSelectedRecord(record);
     setDetailOpen(true);
   }, []);
@@ -199,13 +257,19 @@ export function TabExchange() {
     setDeleteConfirmOpen(true);
   }, [selectedRecord]);
 
-  const handleDeleteConfirm = useCallback(() => {
-    if (recordToDeleteId) {
-      setRecords((prev) => prev.filter((r) => r.id !== recordToDeleteId));
-      setRecordToDeleteId(null);
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!recordToDeleteId) {
+      setDeleteConfirmOpen(false);
+      return;
     }
+    const res = await apiFetch(`/trips/${tripId}/exchanges/${recordToDeleteId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(res.error ?? "Failed to delete");
+    invalidateExchanges();
+    setRecordToDeleteId(null);
     setDeleteConfirmOpen(false);
-  }, [recordToDeleteId]);
+  }, [tripId, recordToDeleteId, invalidateExchanges]);
 
   useEffect(() => {
     if (deleteConfirmOpen) return;
@@ -222,7 +286,17 @@ export function TabExchange() {
         {/* 상단 영역: 지출 탭과 레이아웃 통일(환전 탭은 필터 등 상단 버튼 없음) */}
         <div className="flex flex-wrap items-center gap-2 px-4" aria-hidden />
 
-        {/* 목록: 토스 통장형 평면 리스트. 월.일(연속 시 생략). 올해 아닌 구간 맨 위에만 "YYYY년" 표시 */}
+        {/* 목록 없을 때 안내 / 목록: 토스 통장형 평면 리스트 */}
+        {exchangesQuery.isLoading ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">불러오는 중…</p>
+        ) : myRecords.length === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <p className="text-muted-foreground">환전 기록이 없습니다.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              하단 버튼으로 첫 환전 기록을 추가해 보세요.
+            </p>
+          </div>
+        ) : (
         <ul className="flex flex-col" role="list" aria-label="환전 기록 목록">
         {myRecords.map((record, index) => {
           const dateKey = getDateKey(record.exchangedAt);
@@ -293,6 +367,7 @@ export function TabExchange() {
           );
         })}
         </ul>
+        )}
       </div>
 
       {/* 하단 고정: 그라데이션(클릭 통과) + 환전 추가 버튼 */}
@@ -319,7 +394,10 @@ export function TabExchange() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSubmit={handleAddSubmit}
-        defaultExchangedBy={MOCK_CURRENT_USER}
+        defaultExchangedBy={defaultExchangedBy}
+        baseCurrency={baseCurrency}
+        targetCurrencyOptions={targetCurrencyOptions}
+        defaultTargetCurrency={additionalCurrency ?? undefined}
       />
 
       <ExchangeAddSheet
@@ -331,7 +409,10 @@ export function TabExchange() {
           setDetailOpen(true);
         }}
         onSubmit={handleAddSubmit}
-        defaultExchangedBy={MOCK_CURRENT_USER}
+        defaultExchangedBy={defaultExchangedBy}
+        baseCurrency={baseCurrency}
+        targetCurrencyOptions={targetCurrencyOptions}
+        defaultTargetCurrency={additionalCurrency ?? undefined}
         initialValue={editInitialValue}
         editId={editId}
       />

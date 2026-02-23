@@ -1,53 +1,154 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TripEditDialog, type TripForm } from "./trip-edit-dialog";
+import { COUNTRY_LABELS } from "@/lib/countries";
+import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth";
 
 /**
  * 설정 탭. SPEC §7: 여행 설정(이름, 설명, 기간, 국가, 통화), 공개 여부·여행 비밀번호, 멤버 관리(owner만).
- * 여행 설정·공개 여부는 "수정" 버튼으로 편집 시트에서 변경. 저장은 목업(로컬 상태만 반영).
+ * GET /trips/:id, GET /trips/:tripId/members 로 데이터 로드, PATCH /trips/:id 로 저장 (owner만).
  */
 
-/** 목업: 현재 사용자가 owner인지 */
-const MOCK_IS_OWNER = true;
-
-const INITIAL_TRIP: TripForm = {
-  name: "제주도 여행",
-  description: "2025년 2월 제주 3박 4일",
-  startDate: "2025-02-18",
-  endDate: "2025-02-21",
-  countryCode: "KR",
-  baseCurrency: "KRW",
-  additionalCurrency: "JPY",
-  isPublic: false,
-  hasPassword: false,
+type ApiTrip = {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  countryCode: string;
+  baseCurrency: string;
+  additionalCurrency: string | null;
+  isPublic: boolean;
+  createdAt: string;
 };
 
-type MockMember = {
+type ApiMember = {
   id: string;
   displayName: string;
-  role: "owner" | "member";
+  colorHex: string | null;
+  role: string;
+  userId: string | null;
+  guestId: string | null;
 };
 
-const MOCK_MEMBERS: MockMember[] = [
-  { id: "1", displayName: "김철수", role: "owner" },
-  { id: "2", displayName: "이영희", role: "member" },
-  { id: "3", displayName: "박민수", role: "member" },
-];
+function apiTripToForm(t: ApiTrip): TripForm {
+  const startDate = t.startDate.slice(0, 10);
+  const endDate = t.endDate.slice(0, 10);
+  return {
+    name: t.name,
+    description: t.description ?? "",
+    startDate,
+    endDate,
+    countryCode: t.countryCode,
+    baseCurrency: t.baseCurrency,
+    additionalCurrency: t.additionalCurrency ?? "",
+    isPublic: t.isPublic,
+    hasPassword: t.isPublic, // 공개 시 비밀번호 있다고 가정(API는 반환 안 함)
+  };
+}
 
-const COUNTRY_LABELS: Record<string, string> = {
-  KR: "대한민국", JP: "일본", US: "미국", CN: "중국", TH: "태국", VN: "베트남",
-  SG: "싱가포르", TW: "대만", HK: "홍콩", GB: "영국", FR: "프랑스", DE: "독일",
-  IT: "이탈리아", ES: "스페인", AU: "호주",
-};
+type TabSettingsProps = { tripId: string };
 
-export function TabSettings() {
-  const [trip, setTrip] = useState<TripForm>(INITIAL_TRIP);
+export function TabSettings({ tripId }: TabSettingsProps) {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const guest = useAuthStore((s) => s.guest);
+
   const [editOpen, setEditOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<ApiMember | null>(null);
+
+  const tripQuery = useQuery({
+    queryKey: ["trips", tripId],
+    queryFn: async () => {
+      const res = await apiFetch<{ trip: ApiTrip }>(`/trips/${tripId}`);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load trip");
+      return res.data;
+    },
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["trips", tripId, "members"],
+    queryFn: async () => {
+      const res = await apiFetch<{ members: ApiMember[] }>(`/trips/${tripId}/members`);
+      if (!res.ok) throw new Error(res.error ?? "Failed to load members");
+      return res.data;
+    },
+  });
+
+  const trip: TripForm | null = tripQuery.data?.trip
+    ? apiTripToForm(tripQuery.data.trip)
+    : null;
+  const membersRaw = membersQuery.data?.members ?? [];
+  const members = useMemo(
+    () => [...membersRaw].sort((a, b) => (a.role === "owner" ? 0 : 1) - (b.role === "owner" ? 0 : 1)),
+    [membersRaw]
+  );
+  const currentMember = useMemo(
+    () =>
+      user
+        ? members.find((m) => m.userId === user.id)
+        : guest
+          ? members.find((m) => m.id === guest.memberId)
+          : null,
+    [user, guest, members]
+  );
+  const isOwner = currentMember?.role === "owner";
 
   const openEdit = () => setEditOpen(true);
+
+  const handleSave = async (value: TripForm): Promise<void> => {
+    const res = await apiFetch<{ trip: ApiTrip }>(`/trips/${tripId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: value.name,
+        description: value.description || null,
+        startDate: value.startDate,
+        endDate: value.endDate,
+        countryCode: value.countryCode,
+        baseCurrency: "KRW",
+        additionalCurrency: value.additionalCurrency || null,
+        isPublic: value.isPublic,
+        ...(value.isPublic && value.password ? { password: value.password } : undefined),
+      }),
+    });
+    if (!res.ok) throw new Error(res.error ?? "저장에 실패했습니다");
+    queryClient.invalidateQueries({ queryKey: ["trips", tripId] });
+    setEditOpen(false);
+  };
+
+  const handleRemoveMember = useCallback(async () => {
+    const memberId = memberToRemove?.id;
+    if (!memberId) return;
+    setMemberToRemove(null);
+    const res = await apiFetch(`/trips/${tripId}/members/${memberId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(res.error ?? "내보내기에 실패했습니다");
+    queryClient.invalidateQueries({ queryKey: ["trips", tripId, "members"] });
+  }, [tripId, memberToRemove, queryClient]);
+
+  if (tripQuery.isLoading || !trip) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <p className="text-sm text-muted-foreground">불러오는 중…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-8">
@@ -56,11 +157,11 @@ export function TabSettings() {
         <div className="flex items-center justify-between gap-2 pb-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             여행 설정
-            {!MOCK_IS_OWNER && (
+            {!isOwner && (
               <span className="ml-1.5 text-xs font-normal">(수정 권한: 여행 생성자만)</span>
             )}
           </h2>
-          {MOCK_IS_OWNER && (
+          {isOwner && (
             <Button
               type="button"
               variant="ghost"
@@ -130,43 +231,75 @@ export function TabSettings() {
       <section aria-label="멤버 관리">
         <h2 className="text-sm font-medium text-muted-foreground pb-2">
           멤버 관리
-          {!MOCK_IS_OWNER && (
+          {!isOwner && (
             <span className="ml-1.5 text-xs font-normal">(여행 생성자만)</span>
           )}
         </h2>
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <ul className="divide-y divide-border" role="list">
-            {MOCK_MEMBERS.map((m) => (
+            {members.map((m) => (
               <li
                 key={m.id}
                 className="px-4 py-3 flex items-center justify-between gap-2"
               >
-                <span className="text-sm text-foreground">{m.displayName}</span>
-                <span className="text-xs text-muted-foreground">
-                  {m.role === "owner" ? "생성자" : "멤버"}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm text-foreground truncate">{m.displayName}</span>
+                  {currentMember?.id === m.id && (
+                    <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
+                      나
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {m.role === "owner" ? "생성자" : "멤버"}
+                  </span>
+                  {isOwner && m.role !== "owner" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => setMemberToRemove(m)}
+                    >
+                      내보내기
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
-          {MOCK_IS_OWNER && (
-            <div className="px-4 py-3 border-t border-border">
-              <button
-                type="button"
-                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
-              >
-                멤버 내보내기
-              </button>
-            </div>
-          )}
         </div>
       </section>
 
-<TripEditDialog
+      <TripEditDialog
         open={editOpen}
         onOpenChange={setEditOpen}
         value={trip}
-        onSave={setTrip}
+        onSave={handleSave}
       />
+
+      <AlertDialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>멤버 내보내기</AlertDialogTitle>
+            <AlertDialogDescription>
+              {memberToRemove && (
+                <>
+                  <span className="font-medium text-foreground">{memberToRemove.displayName}</span>
+                  님을 여행에서 내보내시겠습니까? 내보낸 멤버는 링크와 비밀번호로 다시 참여할 수 있습니다.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleRemoveMember}>
+              내보내기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

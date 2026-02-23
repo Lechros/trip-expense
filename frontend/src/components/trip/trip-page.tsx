@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Plane, Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Receipt, RefreshCw, Calculator, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TabExpenses } from "./tab-expenses";
 import { TabExchange } from "./tab-exchange";
 import { TabSettlement } from "./tab-settlement";
 import { TabSettings } from "./tab-settings";
+import { apiFetch } from "@/lib/api";
 
 const TABS = [
   { id: "expenses" as const, label: "지출", icon: Receipt },
@@ -17,30 +20,64 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const TAB_IDS: TabId[] = ["expenses", "exchange", "settlement", "settings"];
+
+function parseTabFromQuery(searchParams: ReturnType<typeof useSearchParams>): TabId {
+  const t = searchParams.get("tab");
+  return t && TAB_IDS.includes(t as TabId) ? (t as TabId) : "expenses";
+}
+
 type TripPageProps = {
   tripId: string;
 };
 
 /**
- * 여행 페이지: [지출, 환전, 정산, 설정] 4탭.
- * SPEC §4.4(지출), §5(환전), §6(정산), §7(설정).
+ * 여행 페이지 본문: 탭 + 메인. 헤더는 서버에서 TripPageHeader로 렌더됨(SSR).
+ * 탭은 URL ?tab= 에 반영되어 새로고침 시 유지됨.
  */
 export function TripPage({ tripId }: TripPageProps) {
-  const [tab, setTab] = useState<TabId>("expenses");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTabState] = useState<TabId>(() => parseTabFromQuery(searchParams));
+
+  const setTab = useCallback(
+    (next: TabId) => {
+      setTabState(next);
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", next);
+      router.replace(url.pathname + url.search, { scroll: false });
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    const fromUrl = parseTabFromQuery(searchParams);
+    setTabState(fromUrl);
+  }, [searchParams]);
+
+  useQuery({
+    queryKey: ["trips", tripId],
+    queryFn: async () => {
+      const res = await apiFetch<{ trip?: { name: string } }>(`/trips/${tripId}`);
+      if (res.status === 403) router.replace("/trips");
+      if (!res.ok) throw new Error(res.error ?? "Failed to load trip");
+      return res.data;
+    },
+  });
+
+  useQuery({
+    queryKey: ["trips", tripId, "members"],
+    queryFn: async () => {
+      const res = await apiFetch<{ members: { id: string; displayName: string; colorHex: string | null }[] }>(
+        `/trips/${tripId}/members`
+      );
+      if (!res.ok) throw new Error(res.error ?? "Failed to load members");
+      return res.data;
+    },
+  });
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="shrink-0 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-6">
-        <div className="mx-auto flex max-w-lg items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Plane aria-hidden />
-          </div>
-          <span className="truncate text-base font-semibold tracking-tight text-foreground">
-            여행 이름
-          </span>
-        </div>
-      </header>
-
       {/* 탭: 터치 영역 최소 48px 높이 (접근성·WCAG 터치 타겟) */}
       <nav
         className="shrink-0 border-b border-border/60 bg-background"
@@ -75,16 +112,16 @@ export function TripPage({ tripId }: TripPageProps) {
       <main className="flex flex-1 flex-col overflow-auto py-6 sm:py-8">
         <div className="mx-auto w-full max-w-lg flex flex-1 flex-col">
           {tab === "expenses" && (
-            <TabExpenses />
+            <TabExpenses tripId={tripId} />
           )}
           {tab === "exchange" && (
-            <TabExchange />
+            <TabExchange tripId={tripId} />
           )}
           {tab === "settlement" && (
-            <TabSettlement />
+            <TabSettlement tripId={tripId} />
           )}
           {tab === "settings" && (
-            <TabSettings />
+            <TabSettings tripId={tripId} />
           )}
         </div>
       </main>

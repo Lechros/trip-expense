@@ -17,25 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
-
-/** 국가 목록 (ISO 3166-1 alpha-2). 연동 시 필요 목록으로 교체 */
-const COUNTRY_OPTIONS = [
-  { value: "KR", label: "대한민국" },
-  { value: "JP", label: "일본" },
-  { value: "US", label: "미국" },
-  { value: "CN", label: "중국" },
-  { value: "TH", label: "태국" },
-  { value: "VN", label: "베트남" },
-  { value: "SG", label: "싱가포르" },
-  { value: "TW", label: "대만" },
-  { value: "HK", label: "홍콩" },
-  { value: "GB", label: "영국" },
-  { value: "FR", label: "프랑스" },
-  { value: "DE", label: "독일" },
-  { value: "IT", label: "이탈리아" },
-  { value: "ES", label: "스페인" },
-  { value: "AU", label: "호주" },
-];
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 
 /** 추가 통화 '선택 안 함'용 값 (Select는 빈 문자열 value 불가) */
 const ADDITIONAL_CURRENCY_NONE = "__none__";
@@ -62,27 +44,42 @@ export type TripForm = {
   additionalCurrency: string;
   isPublic: boolean;
   hasPassword: boolean;
+  /** 공개 시 설정/변경할 비밀번호 (API 전송용, 저장되지 않음) */
+  password?: string;
 };
 
 type TripEditDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: TripForm;
-  onSave: (value: TripForm) => void;
+  onSave: (value: TripForm) => void | Promise<void>;
 };
 
 export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDialogProps) {
   const [editForm, setEditForm] = useState<TripForm>(value);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setEditForm({ ...value });
+    if (open) {
+      setEditForm({ ...value, baseCurrency: "KRW" });
+      setSaveError(null);
+    }
   }, [open, value]);
 
   const closeEdit = () => onOpenChange(false);
 
-  const saveEdit = () => {
-    onSave({ ...editForm });
-    onOpenChange(false);
+  const saveEdit = async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      await onSave({ ...editForm });
+      onOpenChange(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "저장에 실패했습니다");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -173,21 +170,12 @@ export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDi
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="trip-baseCurrency" className="text-sm text-muted-foreground">기본 통화</Label>
-                <Select
-                  value={editForm.baseCurrency}
-                  onValueChange={(v) => setEditForm((p) => ({ ...p, baseCurrency: v }))}
+                <div
+                  id="trip-baseCurrency"
+                  className="flex min-h-12 items-center rounded-md border border-input bg-transparent px-3 text-sm text-muted-foreground"
                 >
-                  <SelectTrigger id="trip-baseCurrency" className="min-h-12 bg-transparent w-full">
-                    <SelectValue placeholder="통화 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  KRW (원)
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="trip-additionalCurrency" className="text-sm text-muted-foreground">추가 통화</Label>
@@ -202,7 +190,7 @@ export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDi
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={ADDITIONAL_CURRENCY_NONE}>선택 안 함</SelectItem>
-                    {CURRENCY_OPTIONS.filter((c) => c.value !== editForm.baseCurrency).map((c) => (
+                    {CURRENCY_OPTIONS.filter((c) => c.value !== "KRW").map((c) => (
                       <SelectItem key={c.value} value={c.value}>
                         {c.label}
                       </SelectItem>
@@ -211,6 +199,11 @@ export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDi
                 </Select>
               </div>
             </div>
+            {saveError && (
+              <p className="text-sm text-destructive" role="alert">
+                {saveError}
+              </p>
+            )}
             <div className="border-t border-border pt-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="trip-isPublic" className="text-sm text-muted-foreground">공개 (링크 보유자만 접근)</Label>
@@ -223,14 +216,20 @@ export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDi
                 />
               </div>
               {editForm.isPublic && (
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="trip-hasPassword" className="text-sm text-muted-foreground">여행 비밀번호 설정</Label>
-                  <input
-                    id="trip-hasPassword"
-                    type="checkbox"
-                    checked={editForm.hasPassword}
-                    onChange={(e) => setEditForm((p) => ({ ...p, hasPassword: e.target.checked }))}
-                    className="size-4 rounded border-border"
+                <div className="space-y-2">
+                  <Label htmlFor="trip-password" className="text-sm text-muted-foreground">
+                    여행 비밀번호 (공개 시 필수)
+                  </Label>
+                  <Input
+                    id="trip-password"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={editForm.hasPassword ? "변경 시에만 입력" : "비밀번호 입력"}
+                    value={editForm.password ?? ""}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, password: e.target.value, hasPassword: !!e.target.value || p.hasPassword }))
+                    }
+                    className="min-h-12 bg-transparent"
                   />
                 </div>
               )}
@@ -254,8 +253,9 @@ export function TripEditDialog({ open, onOpenChange, value, onSave }: TripEditDi
               size="lg"
               className="min-h-12 flex-1 touch-manipulation"
               onClick={saveEdit}
+              disabled={saving}
             >
-              저장
+              {saving ? "저장 중…" : "저장"}
             </Button>
           </div>
         </div>
