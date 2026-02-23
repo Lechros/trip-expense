@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,7 @@ function isSafeRedirect(path: string | null): path is string {
   return true;
 }
 
-/**
- * OAuth 콜백 (Google 로그인 후 백엔드가 쿠키 설정 후 이 URL로 리다이렉트).
- * GET /me로 사용자 확인 후, state(redirect)가 있으면 해당 path로, 없으면 /trips로 이동.
- */
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkAuth = useAuthStore((s) => s.checkAuth);
@@ -65,5 +61,23 @@ export default function AuthCallbackPage() {
     <div className="flex min-h-dvh flex-col items-center justify-center px-4">
       <p className="text-muted-foreground">로그인 처리 중…</p>
     </div>
+  );
+}
+
+/**
+ * OAuth 콜백 (Google 로그인 후 백엔드가 쿠키 설정 후 이 URL로 리다이렉트).
+ * GET /me로 사용자 확인 후, state(redirect)가 있으면 해당 path로, 없으면 /trips로 이동.
+ */
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh flex-col items-center justify-center px-4">
+          <p className="text-muted-foreground">로그인 처리 중…</p>
+        </div>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
   );
 }
