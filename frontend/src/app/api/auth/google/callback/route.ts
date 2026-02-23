@@ -34,9 +34,11 @@ export async function GET(request: NextRequest) {
   const location = res.headers.get("location");
   if (location) nextRes.headers.set("Location", location);
 
+  // Domain 제거해 쿠키가 프론트 도메인에 설정되도록 함. 그래야 /api/me 등 같은 오리진 요청에 쿠키가 포함됨.
   const setCookies = res.headers.getSetCookie?.() ?? (res.headers.get("set-cookie") ? [res.headers.get("set-cookie")!] : []);
   for (const c of setCookies) {
-    nextRes.headers.append("Set-Cookie", c);
+    const withoutDomain = c.replace(/;\s*Domain=[^;]+/gi, "");
+    nextRes.headers.append("Set-Cookie", withoutDomain);
   }
 
   return nextRes;
