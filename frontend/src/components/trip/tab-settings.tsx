@@ -1,9 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TripEditDialog, type TripForm } from "./trip-edit-dialog";
 import { COUNTRY_LABELS } from "@/lib/countries";
 import { apiFetch } from "@/lib/api";
@@ -30,6 +40,7 @@ type ApiTrip = {
 type ApiMember = {
   id: string;
   displayName: string;
+  colorHex: string | null;
   role: string;
   userId: string | null;
   guestId: string | null;
@@ -59,6 +70,7 @@ export function TabSettings({ tripId }: TabSettingsProps) {
   const guest = useAuthStore((s) => s.guest);
 
   const [editOpen, setEditOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<ApiMember | null>(null);
 
   const tripQuery = useQuery({
     queryKey: ["trips", tripId],
@@ -81,7 +93,11 @@ export function TabSettings({ tripId }: TabSettingsProps) {
   const trip: TripForm | null = tripQuery.data?.trip
     ? apiTripToForm(tripQuery.data.trip)
     : null;
-  const members = membersQuery.data?.members ?? [];
+  const membersRaw = membersQuery.data?.members ?? [];
+  const members = useMemo(
+    () => [...membersRaw].sort((a, b) => (a.role === "owner" ? 0 : 1) - (b.role === "owner" ? 0 : 1)),
+    [membersRaw]
+  );
   const currentMember = useMemo(
     () =>
       user
@@ -114,6 +130,17 @@ export function TabSettings({ tripId }: TabSettingsProps) {
     queryClient.invalidateQueries({ queryKey: ["trips", tripId] });
     setEditOpen(false);
   };
+
+  const handleRemoveMember = useCallback(async () => {
+    const memberId = memberToRemove?.id;
+    if (!memberId) return;
+    setMemberToRemove(null);
+    const res = await apiFetch(`/trips/${tripId}/members/${memberId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(res.error ?? "내보내기에 실패했습니다");
+    queryClient.invalidateQueries({ queryKey: ["trips", tripId, "members"] });
+  }, [tripId, memberToRemove, queryClient]);
 
   if (tripQuery.isLoading || !trip) {
     return (
@@ -215,23 +242,33 @@ export function TabSettings({ tripId }: TabSettingsProps) {
                 key={m.id}
                 className="px-4 py-3 flex items-center justify-between gap-2"
               >
-                <span className="text-sm text-foreground">{m.displayName}</span>
-                <span className="text-xs text-muted-foreground">
-                  {m.role === "owner" ? "생성자" : "멤버"}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm text-foreground truncate">{m.displayName}</span>
+                  {currentMember?.id === m.id && (
+                    <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
+                      나
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {m.role === "owner" ? "생성자" : "멤버"}
+                  </span>
+                  {isOwner && m.role !== "owner" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => setMemberToRemove(m)}
+                    >
+                      내보내기
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
-          {isOwner && (
-            <div className="px-4 py-3 border-t border-border">
-              <button
-                type="button"
-                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
-              >
-                멤버 내보내기
-              </button>
-            </div>
-          )}
         </div>
       </section>
 
@@ -241,6 +278,28 @@ export function TabSettings({ tripId }: TabSettingsProps) {
         value={trip}
         onSave={handleSave}
       />
+
+      <AlertDialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>멤버 내보내기</AlertDialogTitle>
+            <AlertDialogDescription>
+              {memberToRemove && (
+                <>
+                  <span className="font-medium text-foreground">{memberToRemove.displayName}</span>
+                  님을 여행에서 내보내시겠습니까? 내보낸 멤버는 링크와 비밀번호로 다시 참여할 수 있습니다.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleRemoveMember}>
+              내보내기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

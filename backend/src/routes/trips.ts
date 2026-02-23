@@ -412,6 +412,30 @@ export async function tripRoutes(app: FastifyInstance) {
     colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   });
 
+  // 본인 프로필(이 여행에서의 이름·색상) 수정. 멤버면 누구나 가능.
+  app.patch(
+    '/trips/:tripId/members/me',
+    { preHandler: [requireAuthOrGuest, requireTripMember] },
+    async (req: FastifyRequest<{ Params: { tripId: string } }>, reply: FastifyReply) => {
+      const parsed = patchMemberBody.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error.flatten() });
+      }
+      const data = parsed.data;
+      const memberId = (req as FastifyRequest & { tripMember?: { memberId: string } }).tripMember?.memberId;
+      if (!memberId) return reply.status(403).send({ error: '멤버 정보를 찾을 수 없습니다' });
+      const updated = await prisma.tripMember.update({
+        where: { id: memberId },
+        data: {
+          ...(data.displayName !== undefined && { displayName: data.displayName }),
+          ...(data.colorHex !== undefined && { colorHex: data.colorHex }),
+        },
+        select: { id: true, displayName: true, colorHex: true, role: true, joinedAt: true },
+      });
+      return reply.send({ member: updated });
+    }
+  );
+
   app.patch(
     '/trips/:tripId/members/:memberId',
     { preHandler: [requireAuth, requireTripOwner] },

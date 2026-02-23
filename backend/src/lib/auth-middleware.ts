@@ -55,6 +55,7 @@ export async function requireAuthOrGuest(
       request.userId = payload.sub;
       return;
     }
+    return reply.status(401).send({ error: '유효하지 않거나 만료된 토큰입니다' });
   }
   const guestToken = getGuestSessionFromRequest(request);
   if (guestToken) {
@@ -66,6 +67,7 @@ export async function requireAuthOrGuest(
       request.isGuest = true;
       return;
     }
+    return reply.status(401).send({ error: '유효하지 않거나 만료된 토큰입니다' });
   }
   return reply.status(401).send({ error: '인증이 필요합니다' });
 }

@@ -67,6 +67,10 @@ export async function requireTripMember(
     if (request.tripId !== tripId) {
       return reply.status(403).send({ error: '이 여행에 대한 접근 권한이 없습니다' });
     }
+    const tripExists = await prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } });
+    if (!tripExists) {
+      return reply.status(404).send({ error: '여행을 찾을 수 없습니다' });
+    }
     const member = await getTripMemberByGuestId(tripId, request.guestId);
     if (!member) {
       return reply.status(403).send({ error: '이 여행에 대한 접근 권한이 없습니다' });
@@ -77,6 +81,10 @@ export async function requireTripMember(
   const userId = request.userId;
   if (!userId) {
     return reply.status(401).send({ error: '인증이 필요합니다' });
+  }
+  const tripExists = await prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } });
+  if (!tripExists) {
+    return reply.status(404).send({ error: '여행을 찾을 수 없습니다' });
   }
   const member = await getTripMemberByUserId(tripId, userId);
   if (!member) {

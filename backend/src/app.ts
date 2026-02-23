@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.js';
 import { tripRoutes } from './routes/trips.js';
 import { entryRoutes } from './routes/entries.js';
 import { exchangeRoutes } from './routes/exchanges.js';
+import { settlementRoutes } from './routes/settlement.js';
 
 export type BuildAppOptions = {
   logger?: boolean;
@@ -32,6 +33,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(tripRoutes);
   await app.register(entryRoutes, { prefix: '/trips/:tripId' });
   await app.register(exchangeRoutes, { prefix: '/trips/:tripId' });
+  await app.register(settlementRoutes, { prefix: '/trips/:tripId' });
 
   return app;
 }
