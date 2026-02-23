@@ -5,7 +5,7 @@ import { buildApp } from './app.js';
 async function main() {
   const app = await buildApp();
 
-  const port = Number(process.env.PORT) || 3001;
+  const port = Number(process.env.PORT) || 8080;
   await app.listen({ port, host: '0.0.0.0' });
   console.log(`Backend listening on http://localhost:${port}`);
 }

@@ -149,7 +149,7 @@ cd ..
 
 ## 4. 환경 변수·설정 요약
 
-- **frontend**: `.env.local`에 `NEXT_PUBLIC_API_URL=http://localhost:3001` (백엔드 주소)
+- **frontend**: `.env.local`에 `NEXT_PUBLIC_API_URL`, `BACKEND_URL` (백엔드 주소, 예: http://localhost:8080)
 - **backend**: `.env`에 `DATABASE_URL="..."`, `JWT_SECRET="..."`, `CORS_ORIGIN="http://localhost:3000"` (프론트 주소)
 - PostgreSQL은 로컬 설치 또는 Docker·Railway 등에서 준비 후 `DATABASE_URL` 연결
 
@@ -157,7 +157,7 @@ cd ..
 
 ## 5. 실행 순서(로컬 개발)
 
-1. 백엔드: `cd backend && pnpm run dev` (예: 포트 3001)
+1. 백엔드: `cd backend && pnpm run dev` (PORT 미설정 시 8080)
 2. 프론트: `cd frontend && pnpm run dev` (예: 포트 3000)
 
 ---

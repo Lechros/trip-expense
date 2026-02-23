@@ -6,7 +6,7 @@
 const getBaseUrl = (): string => {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
   if (typeof window !== "undefined") return fromEnv ?? "/api";
-  return process.env.BACKEND_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
+  return process.env.BACKEND_URL?.replace(/\/$/, "") ?? "";
 };
 
 /** 클라이언트에서만 사용. 동시 401 시 하나의 refresh만 실행하고 나머지는 대기 후 재시도 */

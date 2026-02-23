@@ -21,7 +21,7 @@ Prisma 7에서는 런타임 DB 연결을 위해 **Driver Adapter**(`@prisma/adap
 
 ## 실행
 
-- 개발: `pnpm run dev` (기본 포트 3001)
+- 개발: `pnpm run dev` (기본 포트는 `PORT` env, 미설정 시 8080)
 - 빌드: `pnpm run build`
 - 프로덕션: `pnpm start`
 

@@ -5,7 +5,7 @@ import { Plane, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL ?? "";
 
 type TripItem = {
   id: string;

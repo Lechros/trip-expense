@@ -9,7 +9,7 @@ import {
   fetchTripEntriesServer,
 } from "@/lib/server-api";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL ?? "";
 
 type Props = { params: Promise<{ tripId: string }> };
 

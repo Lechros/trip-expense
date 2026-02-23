@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { AuthHydrate } from "@/components/auth-hydrate";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL ?? "";
 
 export default async function TripsLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();

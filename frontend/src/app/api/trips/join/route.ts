@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.BACKEND_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL?.replace(/\/$/, "") ?? "";
 
 /**
  * POST /api/trips/join — 백엔드로 프록시하고 Set-Cookie(guest_session 등)를 그대로 클라이언트에 전달.

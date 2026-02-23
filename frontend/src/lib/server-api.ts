@@ -2,7 +2,7 @@
  * 서버 전용: 요청 쿠키로 백엔드 호출. SSR prefetch용.
  */
 
-const BACKEND_URL = process.env.BACKEND_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL?.replace(/\/$/, "") ?? "";
 
 export async function fetchTripServer(
   tripId: string,
