@@ -1,5 +1,6 @@
 /**
  * API 클라이언트: credentials: include (쿠키 전송). 401 시 refresh 후 재시도 또는 로그인 페이지로.
+ * 동시 401 시 refresh는 한 번만 수행하고 나머지는 그 결과를 기다린 뒤 재시도 (중복 refresh로 logout 방지).
  */
 
 const getBaseUrl = (): string => {
@@ -7,6 +8,9 @@ const getBaseUrl = (): string => {
   if (typeof window !== "undefined") return fromEnv ?? "/api";
   return process.env.BACKEND_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
 };
+
+/** 클라이언트에서만 사용. 동시 401 시 하나의 refresh만 실행하고 나머지는 대기 후 재시도 */
+let refreshPromise: Promise<boolean> | null = null;
 
 export type ApiResponse<T = unknown> =
   | { ok: true; data: T; status: number }
@@ -53,12 +57,22 @@ export async function apiFetch<T = unknown>(
   let res = await doFetch();
 
   if (res.status === 401 && auth && retryWithRefresh) {
-    const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (refreshRes.ok) {
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        try {
+          const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          return refreshRes.ok;
+        } finally {
+          refreshPromise = null;
+        }
+      })();
+    }
+    const refreshed = await refreshPromise;
+    if (refreshed) {
       res = await doFetch();
     }
   }
