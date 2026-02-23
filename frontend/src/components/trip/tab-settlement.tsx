@@ -10,6 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 
 type SettlementResponse = {
+  settlementError?: boolean;
+  settlementErrorMessage?: string[];
   exchangeWarning: boolean;
   excludedMessages: string[];
   memberSummaries: {
@@ -72,6 +74,8 @@ export function TabSettlement({ tripId }: TabSettlementProps) {
   }
 
   const {
+    settlementError,
+    settlementErrorMessage = [],
     exchangeWarning,
     excludedMessages,
     memberSummaries,
@@ -81,9 +85,31 @@ export function TabSettlement({ tripId }: TabSettlementProps) {
     mySummary,
   } = data;
 
+  if (settlementError && settlementErrorMessage.length > 0) {
+    return (
+      <div className="flex flex-col gap-6 px-4 pb-8">
+        <section aria-label="정산 불가 안내">
+          <div className="rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3">
+            <p className="text-sm font-medium text-foreground mb-1">
+              정산을 계산할 수 없습니다
+            </p>
+            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
+              {settlementErrorMessage.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground mt-2">
+              환전 탭에서 해당 통화의 환전 기록을 추가한 뒤 다시 확인해 주세요.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 pb-8">
-      {/* 1. 환전 부족 / 제외 항목 경고 */}
+      {/* 1. 환전 부족 / 제외 항목 경고 (정산은 되었으나 일부 제외된 경우) */}
       {exchangeWarning && excludedMessages.length > 0 && (
         <section aria-label="환전·정산 안내">
           <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">

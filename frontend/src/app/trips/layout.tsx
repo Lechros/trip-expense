@@ -9,10 +9,14 @@ export default async function TripsLayout({ children }: { children: React.ReactN
     headers: { Cookie: cookieStore.toString() },
     cache: "no-store",
   });
+  const initialMe =
+    res.ok ?
+      ((await res.json().catch(() => null)) as { user?: { id: string; email: string } } | { guest?: { guestId: string; tripId: string; memberId: string } } | null)
+    : null;
   // 인증 실패 시에도 여기서 /login으로 보내지 않음. 트립 상세는 참여 불가 시 /join/:tripId로, 목록은 페이지에서 /login으로 보냄.
   return (
     <>
-      <AuthHydrate />
+      <AuthHydrate initialMe={initialMe} />
       {children}
     </>
   );

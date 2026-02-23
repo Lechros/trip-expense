@@ -2,16 +2,19 @@ import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { TripPage } from "@/components/trip/trip-page";
+import { TripPageHeader } from "@/components/trip/trip-page-header";
 import {
   fetchTripServer,
   fetchTripMembersServer,
   fetchTripEntriesServer,
 } from "@/lib/server-api";
 
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
+
 type Props = { params: Promise<{ tripId: string }> };
 
 /**
- * 여행 상세 페이지. 지출·멤버를 서버에서 prefetch 후 HydrationBoundary로 전달.
+ * 여행 상세 페이지. 서버에서 trip·멤버·/me prefetch 후 헤더(SSR) + HydrationBoundary로 전달.
  */
 export default async function TripDetailPage({ params }: Props) {
   const { tripId } = await params;
@@ -38,9 +41,44 @@ export default async function TripDetailPage({ params }: Props) {
   const tripData = queryClient.getQueryData<{ trip?: { name: string } }>(["trips", tripId]);
   if (!tripData?.trip) redirect(`/join/${tripId}`);
 
+  const membersData = queryClient.getQueryData<{ members: { id: string; displayName: string; colorHex: string | null; userId: string | null; guestId: string | null }[] }>([
+    "trips",
+    tripId,
+    "members",
+  ]);
+  const members = membersData?.members ?? [];
+
+  const meRes = await fetch(`${BACKEND_URL}/me`, {
+    headers: { Cookie: cookieHeader },
+    cache: "no-store",
+  });
+  const meJson = meRes.ok ? await meRes.json().catch(() => null) : null;
+  const currentMember =
+    meJson?.user
+      ? members.find((m) => m.userId === meJson.user.id)
+      : meJson?.guest
+        ? members.find((m) => m.id === meJson.guest.memberId)
+        : null;
+
+  const headerMember =
+    currentMember ?
+      {
+        id: currentMember.id,
+        displayName: currentMember.displayName,
+        colorHex: currentMember.colorHex,
+      }
+    : null;
+
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <TripPage tripId={tripId} />
-    </HydrationBoundary>
+    <div className="flex min-h-dvh flex-col">
+      <TripPageHeader
+        tripName={tripData.trip.name}
+        tripId={tripId}
+        currentMember={headerMember}
+      />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <TripPage tripId={tripId} />
+      </HydrationBoundary>
+    </div>
   );
 }

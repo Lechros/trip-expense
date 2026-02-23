@@ -20,8 +20,13 @@ type AuthState = {
   checking: boolean;
 };
 
+/** GET /me 응답 (SSR 초기값 전달용) */
+export type MeResponse = { user?: User } | { guest?: GuestSession } | null;
+
 type AuthActions = {
   setUser: (user: User | null) => void;
+  /** 서버에서 받은 /me 결과로 스토어 초기화 (SSR). user 또는 guest 설정 */
+  setInitialAuth: (me: MeResponse) => void;
   /** GET /me with credentials. 성공 시 user 또는 guest 설정 후 true, 실패 시 false */
   checkAuth: () => Promise<boolean>;
   /** POST /auth/logout 호출 후 user·guest null */
@@ -34,6 +39,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
   checking: false,
 
   setUser: (user) => set((s) => ({ user, guest: user ? null : s.guest })),
+
+  setInitialAuth: (me) => {
+    if (!me) return;
+    if ("user" in me && me.user) set({ user: me.user, guest: null });
+    else if ("guest" in me && me.guest) set({ user: null, guest: me.guest });
+  },
 
   checkAuth: async () => {
     if (!API_URL) return false;

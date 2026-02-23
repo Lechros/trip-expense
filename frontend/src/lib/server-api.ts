@@ -17,7 +17,14 @@ export async function fetchTripServer(
   return data as { trip?: { name: string } };
 }
 
-export type ApiMember = { id: string; displayName: string; role?: string };
+export type ApiMember = {
+  id: string;
+  displayName: string;
+  colorHex: string | null;
+  role?: string;
+  userId: string | null;
+  guestId: string | null;
+};
 
 export async function fetchTripMembersServer(
   tripId: string,
